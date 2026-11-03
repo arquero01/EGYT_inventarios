@@ -1,16 +1,31 @@
 {
-    "name": "egt",
-    "private": true,
-    "type": "module",
-    "packageManager": "pnpm@10.18.0",
-    "engines": {
-        "node": ">=22"
-    },
-    "scripts": {
-        "dev": "pnpm --filter @egt/api dev",
-        "build": "pnpm --filter @egt/api build",
-         "migrate": "pnpm --filter @egt/api migrate",
-    "test": "pnpm -r test",
-    "typecheck": "pnpm -r typecheck"
-    }
+  "name": "@egt/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/servidor.ts",
+    "start": "node dist/servidor.js",
+    "migrate:prod": "node dist/db/migrar-cli.js",
+    "build": "tsup",
+    "migrate": "tsx src/db/migrar-cli.ts",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@egt/domain": "workspace:*",
+    "@electric-sql/pglite": "^0.5.0",
+    "drizzle-orm": "^0.45.0",
+    "fastify": "^5.6.0",
+    "pg": "^8.16.0",
+    "zod": "^4.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/pg": "^8.15.0",
+    "tsup": "^9.0.0",
+    "tsx": "^4.20.0",
+    "typescript": "~5.9.0",
+    "vitest": "^5.0.0"
+  }
 }
