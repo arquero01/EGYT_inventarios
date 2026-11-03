@@ -248,3 +248,95 @@ export const registrarTraslado = z
 export const registrarDevolucion = z
   .object({ proyectoId: id, bodegaDestinoId: id, ...itemsMovimiento })
   .superRefine(validarItems);
+
+// ── Catálogo de comandos ─────────────────────────────────────────────────
+
+export const DEFINICION_COMANDOS = {
+  CREAR_PROYECTO: { schema: crearProyecto, codigo: 'RF-01' },
+  REGISTRAR_INGRESO: { schema: registrarIngreso, codigo: 'RF-06' },
+  CAMBIAR_PROYECTO: { schema: cambiarProyecto, codigo: 'RF-03' },
+  INSTALAR_EQUIPO: { schema: instalarEquipo, codigo: 'RF-11' },
+  RETIRAR_EQUIPO: { schema: retirarEquipo, codigo: 'RF-13' },
+  ENVIAR_A_MANTENIMIENTO: { schema: enviarAMantenimiento, codigo: 'RF-14' },
+  FINALIZAR_MANTENIMIENTO: { schema: finalizarMantenimiento, codigo: 'RF-23' },
+  DAR_DE_BAJA: { schema: darDeBaja, codigo: 'RF-15' },
+  CREAR_BODEGA: { schema: crearBodega, codigo: 'RL-01' },
+  CREAR_ARTICULO: { schema: crearArticulo, codigo: 'RL-03' },
+  INGRESAR_ARTICULOS: { schema: ingresarArticulos, codigo: 'RL-04' },
+  REGISTRAR_DESPACHO: { schema: registrarDespacho, codigo: 'RL-05' },
+  REGISTRAR_TRASLADO: { schema: registrarTraslado, codigo: 'RL-06' },
+  REGISTRAR_DEVOLUCION: { schema: registrarDevolucion, codigo: 'RL-07' },
+} as const satisfies Record<string, { schema: z.ZodType; codigo: CodigoMensaje }>;
+
+export type TipoComando = keyof typeof DEFINICION_COMANDOS;
+export const TIPOS_COMANDO = Object.keys(DEFINICION_COMANDOS) as TipoComando[];
+
+export type PayloadDe<T extends TipoComando> = z.output<(typeof DEFINICION_COMANDOS)[T]['schema']>;
+
+/** Sobre común de todo comando. */
+export const sobreComando = z.object({
+  id,
+  tipo: z.enum(TIPOS_COMANDO as [TipoComando, ...TipoComando[]], { error: 'Tipo de operación desconocido' }),
+  /** Momento en que ocurrió en el dispositivo (puede ser días antes del envío). */
+  ocurridoEn: z.iso.datetime({ offset: true, error: 'Debe ser fecha y hora ISO 8601 con zona horaria' }),
+  dispositivoId: z.string().trim().max(100).optional(),
+  autor: z.string().trim().max(150).optional(),
+  payload: z.custom<unknown>((v) => v !== undefined && v !== null, { error: OBLIGATORIO }),
+});
+
+export type Comando = {
+  [T in TipoComando]: {
+    id: string;
+    tipo: T;
+    ocurridoEn: string;
+    dispositivoId?: string | undefined;
+    autor?: string | undefined;
+    payload: PayloadDe<T>;
+  };
+}[TipoComando];
+
+// ── Validación (RF-23) ───────────────────────────────────────────────────
+
+export type ResultadoValidacion =
+  | { valido: true; comando: Comando }
+  | { valido: false; error: ErrorDominio };
+
+const aDetalles = (issues: z.core.$ZodIssue[], prefijo = ''): DetalleError[] =>
+  issues.map((i) => {
+    const ruta = i.path.map(String).join('.');
+    return { campo: ruta ? prefijo + ruta : prefijo.replace(/\.$/, '') || '(raíz)', problema: i.message };
+  });
+
+const CAMPOS_COMPRA = new Set(['compra', 'valorPagado']);
+/** Comandos con datos de compra: si solo falla la compra, el código es RF-08. */
+const CON_COMPRA = new Set<TipoComando>(['REGISTRAR_INGRESO', 'INGRESAR_ARTICULOS']);
+
+/**
+ * RF-23: valida un comando completo antes de guardarlo. Devuelve `valido`
+ * (boolean) y, si no lo es, el error con el código y los campos pendientes.
+ * La app móvil la usa antes de guardar localmente; la API la vuelve a usar.
+ */
+export function validarComando(entrada: unknown): ResultadoValidacion {
+  const sobre = sobreComando.safeParse(entrada);
+  if (!sobre.success) {
+    return { valido: false, error: errorValidacion('RF-23', aDetalles(sobre.error.issues)) };
+  }
+  const def = DEFINICION_COMANDOS[sobre.data.tipo];
+  const payload = def.schema.safeParse(sobre.data.payload);
+  if (!payload.success) {
+    let codigo: CodigoMensaje = def.codigo;
+    if (CON_COMPRA.has(sobre.data.tipo)) {
+      const soloCompra = payload.error.issues.every((i) => CAMPOS_COMPRA.has(String(i.path[0])));
+      if (soloCompra) codigo = 'RF-08';
+    }
+    return { valido: false, error: errorValidacion(codigo, aDetalles(payload.error.issues, 'payload.')) };
+  }
+  return { valido: true, comando: { ...sobre.data, payload: payload.data } as Comando };
+}
+
+/** Igual que validarComando, pero lanza el ErrorDominio. */
+export function parsearComando(entrada: unknown): Comando {
+  const r = validarComando(entrada);
+  if (!r.valido) throw r.error;
+  return r.comando;
+}

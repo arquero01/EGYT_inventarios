@@ -20,7 +20,9 @@ import {
   normalizarBusqueda,
   normalizarNit,
   normalizarSerial,
+  parsearComando,
   transicion,
+  validarComando,
 } from '../src/index.ts';
 
 describe('máquina de estados', () => {
@@ -283,5 +285,62 @@ describe('formularios: despacho, traslado y devolución', () => {
   it('una devolución exige responsable (RL-07)', () => {
     const devolucion = { proyectoId: crypto.randomUUID(), bodegaDestinoId: crypto.randomUUID(), responsable: '', equipos: [crypto.randomUUID()] };
     expect(camposConError(registrarDevolucion.safeParse(devolucion))).toEqual(['responsable']);
+  });
+});
+
+// ── Validación completa de comandos (comandos.ts, parte 3, RF-23) ───────────
+
+/** Envuelve un formulario en el "sobre" de un comando, como lo enviaría el celular. */
+const sobre = (tipo: string, payload: unknown) => ({
+  id: crypto.randomUUID(),
+  tipo,
+  ocurridoEn: '2026-03-01T10:30:00-05:00',
+  dispositivoId: 'celular-prueba',
+  autor: 'Prueba',
+  payload,
+});
+
+describe('validarComando (RF-23)', () => {
+  it('acepta un comando completo y devuelve valido: true', () => {
+    const r = validarComando(sobre('REGISTRAR_INGRESO', ingresoValido()));
+    expect(r.valido).toBe(true);
+  });
+
+  it('usa el código del requerimiento y señala el campo exacto', () => {
+    const r = validarComando(sobre('REGISTRAR_INGRESO', { ...ingresoValido(), potencia: 0 }));
+    if (r.valido) throw new Error('debía fallar');
+    expect(r.error.codigo).toBe('RF-06');
+    expect(r.error.message).toContain('potencia sea mayor a cero');
+    expect(r.error.detalles).toContainEqual({ campo: 'payload.potencia', problema: 'Debe ser mayor a cero' });
+  });
+
+  it('si solo fallan los datos de compra, responde con RF-08', () => {
+    const r = validarComando(sobre('REGISTRAR_INGRESO', { ...ingresoValido(), valorPagado: -1 }));
+    if (r.valido) throw new Error('debía fallar');
+    expect(r.error.codigo).toBe('RF-08');
+  });
+
+  it('cada comando responde con su propio código', () => {
+    const proyecto = validarComando(sobre('CREAR_PROYECTO', { proyectoId: crypto.randomUUID(), nombre: 'X', vereda: 'X', municipio: 'Y', departamento: 'Z', fechaInicio: '2999-01-01' }));
+    const retiro = validarComando(sobre('RETIRAR_EQUIPO', { equipoId: crypto.randomUUID(), motivo: 'corto' }));
+    const despacho = validarComando(sobre('REGISTRAR_DESPACHO', { bodegaOrigenId: crypto.randomUUID(), proyectoId: crypto.randomUUID(), responsable: 'Luis' }));
+    expect([proyecto, retiro, despacho].map((r) => (r.valido ? 'ok' : r.error.codigo))).toEqual(['RF-01', 'RF-13', 'RL-05']);
+  });
+
+  it('un sobre mal armado responde RF-23 con todos los campos que faltan', () => {
+    const r = validarComando({ tipo: 'NO_EXISTE' });
+    if (r.valido) throw new Error('debía fallar');
+    expect(r.error.codigo).toBe('RF-23');
+    expect(r.error.detalles.map((d) => d.campo)).toEqual(['id', 'tipo', 'ocurridoEn', 'payload']);
+  });
+
+  it('entrega los datos ya limpios', () => {
+    const r = validarComando(sobre('CREAR_ARTICULO', { articuloId: crypto.randomUUID(), codigo: 'cab-6mm', nombre: 'Cable solar', unidad: 'M' }));
+    if (!r.valido) throw new Error('debía pasar');
+    if (r.comando.tipo === 'CREAR_ARTICULO') expect(r.comando.payload.codigo).toBe('CAB-6MM');
+  });
+
+  it('parsearComando lanza el error en lugar de devolverlo', () => {
+    expect(() => parsearComando(sobre('DAR_DE_BAJA', { equipoId: crypto.randomUUID() }))).toThrow('motivo obligatorio');
   });
 });
