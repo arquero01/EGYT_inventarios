@@ -153,3 +153,98 @@ export const darDeBaja = z.object({
   equipoId: id,
   motivo: texto(500),
 });
+
+// ── Logística (RL-01 a RL-08) ─────────────────────────────────────────────
+
+/** RL-01 */
+export const crearBodega = z.object({
+  bodegaId: id,
+  nombre: texto(100),
+  municipio: texto(100),
+  departamento: texto(100),
+  direccion: z.string().trim().max(200, 'Máximo 200 caracteres').optional(),
+});
+
+/** RL-03: artículos que se controlan por cantidad (cables, conectores, estructuras…). */
+export const crearArticulo = z.object({
+  articuloId: id,
+  codigo: z
+    .string({ error: OBLIGATORIO })
+    .trim()
+    .regex(/^[A-Za-z0-9._-]{1,30}$/, 'Código inválido (letras, números, punto, guion; máximo 30)')
+    .transform((c) => c.toUpperCase()),
+  nombre: texto(150),
+  unidad: z.enum(UNIDADES_MEDIDA, { error: `Unidad no permitida (${UNIDADES_MEDIDA.join(', ')})` }),
+  descripcion: z.string().trim().max(500, 'Máximo 500 caracteres').optional(),
+});
+
+const cantidad = z.number({ error: 'Debe ser un número' }).positive('Debe ser mayor a cero').max(1_000_000, 'Cantidad demasiado grande');
+
+/** RL-04: ingreso de artículos por cantidad, con su factura. */
+export const ingresarArticulos = z
+  .object({
+    bodegaId: id,
+    compra: datosCompra,
+    items: z
+      .array(
+        z.object({
+          articuloId: id,
+          cantidad,
+          valorUnitario: z.number({ error: 'Debe ser un número' }).positive('Debe ser mayor a cero'),
+        }),
+      )
+      .min(1, 'Debe incluir al menos un artículo')
+      .max(200, 'Máximo 200 artículos por ingreso'),
+    observacion: z.string().trim().max(500, 'Máximo 500 caracteres').optional(),
+  })
+  .superRefine((d, ctx) => {
+    const vistos = new Set<string>();
+    d.items.forEach((it, i) => {
+      if (vistos.has(it.articuloId)) ctx.addIssue({ code: 'custom', path: ['items', i, 'articuloId'], message: 'Artículo repetido en el ingreso' });
+      vistos.add(it.articuloId);
+    });
+  });
+
+/** Ítems de un movimiento: equipos con serial y/o artículos por cantidad. */
+const itemsMovimiento = {
+  equipos: z.array(id).max(500, 'Máximo 500 equipos por movimiento').default([]),
+  articulos: z.array(z.object({ articuloId: id, cantidad })).max(200, 'Máximo 200 artículos por movimiento').default([]),
+  responsable: texto(150),
+  observacion: z.string().trim().max(500, 'Máximo 500 caracteres').optional(),
+};
+
+function validarItems(d: { equipos: string[]; articulos: { articuloId: string }[] }, ctx: z.RefinementCtx) {
+  if (d.equipos.length === 0 && d.articulos.length === 0) {
+    ctx.addIssue({ code: 'custom', path: ['equipos'], message: 'Debe incluir al menos un equipo o artículo' });
+  }
+  const equipos = new Set<string>();
+  d.equipos.forEach((e, i) => {
+    if (equipos.has(e)) ctx.addIssue({ code: 'custom', path: ['equipos', i], message: 'Equipo repetido en el movimiento' });
+    equipos.add(e);
+  });
+  const articulos = new Set<string>();
+  d.articulos.forEach((a, i) => {
+    if (articulos.has(a.articuloId)) ctx.addIssue({ code: 'custom', path: ['articulos', i, 'articuloId'], message: 'Artículo repetido en el movimiento' });
+    articulos.add(a.articuloId);
+  });
+}
+
+/** RL-05: de una bodega a un proyecto (sale a campo). */
+export const registrarDespacho = z
+  .object({ bodegaOrigenId: id, proyectoId: id, ...itemsMovimiento })
+  .superRefine(validarItems);
+
+/** RL-06: de una bodega a otra. */
+export const registrarTraslado = z
+  .object({ bodegaOrigenId: id, bodegaDestinoId: id, ...itemsMovimiento })
+  .superRefine((d, ctx) => {
+    if (d.bodegaOrigenId === d.bodegaDestinoId) {
+      ctx.addIssue({ code: 'custom', path: ['bodegaDestinoId'], message: 'Debe ser distinta de la bodega de origen' });
+    }
+    validarItems(d, ctx);
+  });
+
+/** RL-07: de un proyecto (campo) de vuelta a una bodega. */
+export const registrarDevolucion = z
+  .object({ proyectoId: id, bodegaDestinoId: id, ...itemsMovimiento })
+  .superRefine(validarItems);

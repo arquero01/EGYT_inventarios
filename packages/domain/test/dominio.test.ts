@@ -1,9 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import {
   accionesPermitidas,
+  crearArticulo,
+  crearBodega,
   crearProyecto,
+  ingresarArticulos,
   instalarEquipo,
+  registrarDespacho,
+  registrarDevolucion,
   registrarIngreso,
+  registrarTraslado,
   retirarEquipo,
   evaluarMovimientoEquipo,
   digitoVerificacionNit,
@@ -218,5 +224,64 @@ describe('formularios: instalación y retiro', () => {
   it('exige motivo de al menos 10 caracteres al retirar (RF-13)', () => {
     expect(camposConError(retirarEquipo.safeParse({ equipoId: crypto.randomUUID(), motivo: 'corto' }))).toEqual(['motivo']);
     expect(retirarEquipo.safeParse({ equipoId: crypto.randomUUID(), motivo: 'El usuario se mudó de vereda' }).success).toBe(true);
+  });
+});
+
+// ── Formularios de logística (comandos.ts, parte 2) ─────────────────────────
+
+describe('formularios: bodegas y artículos', () => {
+  it('acepta una bodega válida y exige su nombre (RL-01)', () => {
+    const bodega = { bodegaId: crypto.randomUUID(), nombre: 'Bodega Cali', municipio: 'Cali', departamento: 'Valle del Cauca' };
+    expect(crearBodega.safeParse(bodega).success).toBe(true);
+    expect(camposConError(crearBodega.safeParse({ ...bodega, nombre: '' }))).toEqual(['nombre']);
+  });
+
+  it('guarda el código del artículo en mayúsculas y rechaza unidades fuera del catálogo (RL-03)', () => {
+    const articulo = { articuloId: crypto.randomUUID(), codigo: 'cab-6mm', nombre: 'Cable solar 6 mm²', unidad: 'M' };
+    const r = crearArticulo.safeParse(articulo);
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data.codigo).toBe('CAB-6MM');
+
+    expect(camposConError(crearArticulo.safeParse({ ...articulo, unidad: 'GALON' }))).toEqual(['unidad']);
+    expect(camposConError(crearArticulo.safeParse({ ...articulo, codigo: 'CABLE 6MM' }))).toEqual(['codigo']);
+  });
+
+  it('un ingreso de artículos necesita al menos un ítem y no repite artículos (RL-04)', () => {
+    const compra = { proveedor: 'Ferretería El Sol', nit: '900123456', numeroFactura: 'FE-77', fechaCompra: '2026-01-05' };
+    const articulo = crypto.randomUUID();
+
+    expect(camposConError(ingresarArticulos.safeParse({ bodegaId: crypto.randomUUID(), compra, items: [] }))).toEqual(['items']);
+
+    const repetido = { articuloId: articulo, cantidad: 10, valorUnitario: 5000 };
+    expect(camposConError(ingresarArticulos.safeParse({ bodegaId: crypto.randomUUID(), compra, items: [repetido, repetido] })))
+      .toEqual(['items.1.articuloId']);
+
+    expect(ingresarArticulos.safeParse({ bodegaId: crypto.randomUUID(), compra, items: [repetido] }).success).toBe(true);
+  });
+});
+
+describe('formularios: despacho, traslado y devolución', () => {
+  it('un despacho necesita al menos un equipo o artículo (RL-05)', () => {
+    const base = { bodegaOrigenId: crypto.randomUUID(), proyectoId: crypto.randomUUID(), responsable: 'Luis Gómez' };
+    expect(camposConError(registrarDespacho.safeParse(base))).toEqual(['equipos']);
+    expect(registrarDespacho.safeParse({ ...base, equipos: [crypto.randomUUID()] }).success).toBe(true);
+    expect(registrarDespacho.safeParse({ ...base, articulos: [{ articuloId: crypto.randomUUID(), cantidad: 25.5 }] }).success).toBe(true);
+  });
+
+  it('no repite el mismo equipo en un movimiento', () => {
+    const equipo = crypto.randomUUID();
+    const despacho = { bodegaOrigenId: crypto.randomUUID(), proyectoId: crypto.randomUUID(), responsable: 'Luis Gómez', equipos: [equipo, equipo] };
+    expect(camposConError(registrarDespacho.safeParse(despacho))).toEqual(['equipos.1']);
+  });
+
+  it('un traslado exige bodegas distintas (RL-06)', () => {
+    const bodega = crypto.randomUUID();
+    const traslado = { bodegaOrigenId: bodega, bodegaDestinoId: bodega, responsable: 'Ana Ruiz', equipos: [crypto.randomUUID()] };
+    expect(camposConError(registrarTraslado.safeParse(traslado))).toEqual(['bodegaDestinoId']);
+  });
+
+  it('una devolución exige responsable (RL-07)', () => {
+    const devolucion = { proyectoId: crypto.randomUUID(), bodegaDestinoId: crypto.randomUUID(), responsable: '', equipos: [crypto.randomUUID()] };
+    expect(camposConError(registrarDevolucion.safeParse(devolucion))).toEqual(['responsable']);
   });
 });
