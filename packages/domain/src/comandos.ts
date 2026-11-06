@@ -30,7 +30,10 @@ const texto = (max: number) =>
     .min(1, OBLIGATORIO)
     .max(max, `Máximo ${max} caracteres`);
 
-const id = z.uuid({ error: 'Debe ser un identificador UUID válido' });
+/** Identificador UUID. Si falta (p. ej. no se eligió proyecto o bodega), dice "Es obligatorio". */
+const id = z.uuid({
+  error: (problema) => (problema.input === undefined || problema.input === '' ? OBLIGATORIO : 'Debe ser un identificador UUID válido'),
+});
 
 const digitos = (min: number, max: number, nombre: string) =>
   z.preprocess(

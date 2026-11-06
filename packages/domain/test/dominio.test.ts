@@ -344,3 +344,13 @@ describe('validarComando (RF-23)', () => {
     expect(() => parsearComando(sobre('DAR_DE_BAJA', { equipoId: crypto.randomUUID() }))).toThrow('motivo obligatorio');
   });
 });
+
+describe('mensajes de identificadores', () => {
+  it('un selector sin elegir dice "Es obligatorio"; un id mal formado, que no es válido', () => {
+    const r = crearBodega.safeParse({ bodegaId: '', nombre: 'B', municipio: 'M', departamento: 'D' });
+    expect(r.success).toBe(false);
+    if (!r.success) expect(r.error.issues[0]?.message).toBe('Es obligatorio');
+    const mal = crearBodega.safeParse({ bodegaId: 'abc', nombre: 'B', municipio: 'M', departamento: 'D' });
+    if (!mal.success) expect(mal.error.issues[0]?.message).toBe('Debe ser un identificador UUID válido');
+  });
+});

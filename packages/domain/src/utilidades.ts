@@ -1,19 +1,15 @@
-import { ZONA_HORARIA } from './catalogos.ts';
-
-const formatoFecha = new Intl.DateTimeFormat('en-CA', {
-  timeZone: ZONA_HORARIA,
-  year: 'numeric',
-  month: '2-digit',
-  day: '2-digit',
-});
+/** Colombia está en UTC−5 todo el año (no usa horario de verano desde 1993). */
+const DESFASE_COLOMBIA_MS = 5 * 60 * 60 * 1000;
 
 /**
  * Fecha calendario (AAAA-MM-DD) en hora de Colombia. El servidor corre en UTC,
  * así que "hoy" a las 8 p. m. en Bogotá ya es "mañana" en UTC; sin esto, una
  * instalación registrada de noche podría rechazarse como "fecha futura".
+ * Se calcula con una resta fija y no con Intl, porque el soporte de zonas
+ * horarias de Intl varía entre celulares Android.
  */
 export function fechaColombia(instante: Date = new Date()): string {
-  return formatoFecha.format(instante);
+  return new Date(instante.getTime() - DESFASE_COLOMBIA_MS).toISOString().slice(0, 10);
 }
 
 /** true si `fecha` (AAAA-MM-DD) es una fecha calendario real. */
@@ -70,7 +66,7 @@ export function normalizarNit(entrada: string): NitNormalizado | null {
 export function normalizarBusqueda(texto: string): string {
   return texto
     .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[̀-ͯ]/g, '')
     .toLowerCase()
     .trim();
 }

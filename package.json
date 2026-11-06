@@ -1,12 +1,16 @@
 {
-  "name": "EGYT_invetarios",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+  "name": "egt",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@12.16.1",
+  "engines": {
+    "node": ">=22"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC"
+  "scripts": {
+    "dev": "pnpm --filter @egt/api dev",
+    "build": "pnpm --filter @egt/api build",
+    "migrate": "pnpm --filter @egt/api migrate",
+    "test": "pnpm -r test",
+    "typecheck": "pnpm -r typecheck"
+  }
 }

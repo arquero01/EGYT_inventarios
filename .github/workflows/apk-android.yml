@@ -1,0 +1,89 @@
+# Compila la APK de Android cada vez que cambia la app o el dominio.
+# La APK queda en dos lugares:
+#   - Releases → "APK más reciente" (se descarga directo desde el celular)
+#   - Actions → la ejecución → Artifacts
+name: APK Android
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/mobile/**"
+      - "packages/domain/**"
+      - "pnpm-lock.yaml"
+      - ".github/workflows/apk-android.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: apk-android
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    name: Compilar APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Descargar el código
+        uses: actions/checkout@v4
+
+      - name: Instalar pnpm (versión de package.json)
+        uses: pnpm/action-setup@v4
+
+      - name: Instalar Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Instalar Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Preparar Gradle (con caché)
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Instalar dependencias
+        run: pnpm install --frozen-lockfile
+
+      - name: Revisar el dominio y la app
+        run: |
+          pnpm --filter @egt/domain test
+          pnpm --filter @egt/mobile typecheck
+
+      - name: Generar el proyecto Android
+        working-directory: apps/mobile
+        env:
+          CI: "1"
+        run: npx expo prebuild --platform android --no-install
+
+      - name: Compilar la APK
+        working-directory: apps/mobile/android
+        # Solo arquitecturas de celulares reales: compila más rápido y la APK pesa menos.
+        run: ./gradlew assembleRelease --no-daemon -PreactNativeArchitectures=arm64-v8a,armeabi-v7a
+
+      - name: Renombrar la APK
+        run: cp apps/mobile/android/app/build/outputs/apk/release/app-release.apk egt-inventario.apk
+
+      - name: Guardar como artefacto
+        uses: actions/upload-artifact@v4
+        with:
+          name: egt-inventario-apk
+          path: egt-inventario.apk
+          if-no-files-found: error
+
+      - name: Publicar en Releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete apk-ultima --yes --cleanup-tag || true
+          gh release create apk-ultima egt-inventario.apk \
+            --title "APK más reciente" \
+            --notes "Compilada automáticamente desde el commit ${GITHUB_SHA::7}. Instálela en Android permitiendo la instalación desde esta fuente." \
+            --prerelease \
+            --target "$GITHUB_SHA"
