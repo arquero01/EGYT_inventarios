@@ -15,6 +15,7 @@
   "dependencies": {
     "@egt/domain": "workspace:*",
     "@electric-sql/pglite": "^0.5.0",
+    "@fastify/static": "^10.1.10",
     "drizzle-orm": "^0.45.0",
     "fastify": "^5.6.0",
     "pg": "^8.16.0",

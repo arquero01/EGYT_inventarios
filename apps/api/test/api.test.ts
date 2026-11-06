@@ -251,6 +251,9 @@ describe('Consultas (RF-10, RF-18 a RF-22)', () => {
     expect((await obtener('/equipos?q=josefina ramirez')).json().paginacion.total).toBe(1);
     expect((await obtener('/equipos?q=busqueda')).json().paginacion.total).toBe(2);
     expect((await obtener('/equipos?q=VICTRON')).json().paginacion.total).toBe(1);
+    // Por cédula del usuario final, con o sin puntos (para atender una PQR).
+    expect((await obtener('/equipos?q=55667788')).json().datos[0].usuarioFinal.cedula).toBe('55667788');
+    expect((await obtener('/equipos?q=55.667.788')).json().paginacion.total).toBe(1);
     expect((await obtener('/equipos?q=zzzz-no-existe')).json().aviso.codigo).toBe('RF-22');
     const corto = await obtener('/equipos?q=a');
     expect(corto.statusCode).toBe(422);

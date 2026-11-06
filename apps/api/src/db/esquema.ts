@@ -2,8 +2,8 @@
  * Tipado de las tablas para Drizzle. La definición real (restricciones,
  * triggers, índices) está en /migraciones/*.sql; si cambia una, cambia la otra.
  */
-import { bigint, boolean, date, jsonb, numeric, pgTable, smallint, text, timestamp, uuid, varchar } from 'drizzle-orm/pg-core';
-import type { EstadoEquipo, OrigenSerial, TipoEquipo, TipoEvento, TipoMovimiento, Ubicacion, UnidadCapacidad, UnidadMedida } from '@egt/domain';
+import { bigint, boolean, char, date, jsonb, numeric, pgTable, smallint, text, timestamp, uuid, varchar } from 'drizzle-orm/pg-core';
+import type { EstadoEquipo, OrigenSerial, Rol, TipoEquipo, TipoEvento, TipoMovimiento, Ubicacion, UnidadCapacidad, UnidadMedida } from '@egt/domain';
 
 // rev lo asigna un trigger; el default solo evita que TypeScript lo exija.
 const rev = () => bigint('rev', { mode: 'number' }).notNull().default(0);
@@ -110,6 +110,7 @@ export const comandos = pgTable('comandos', {
   respuesta: jsonb('respuesta'),
   error: jsonb('error'),
   revision: text('revision').$type<'PENDIENTE' | 'RESUELTO'>(),
+  usuarioId: uuid('usuario_id'),
 });
 
 export const eventosEquipo = pgTable('eventos_equipo', {
@@ -174,7 +175,28 @@ export const movimientoItems = pgTable('movimiento_items', {
   rev: rev(),
 });
 
+export const usuarios = pgTable('usuarios', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  nombre: varchar('nombre', { length: 150 }).notNull(),
+  correo: varchar('correo', { length: 150 }).notNull(),
+  contrasenaHash: text('contrasena_hash').notNull(),
+  rol: text('rol').$type<Rol>().notNull().default('USUARIO'),
+  activo: boolean('activo').notNull().default(true),
+  ...marcas(),
+  ultimoIngreso: timestamp('ultimo_ingreso', { withTimezone: true }),
+});
+
+export const sesiones = pgTable('sesiones', {
+  tokenHash: char('token_hash', { length: 64 }).primaryKey(),
+  usuarioId: uuid('usuario_id').notNull(),
+  creadaEn: timestamp('creada_en', { withTimezone: true }).notNull().defaultNow(),
+  expiraEn: timestamp('expira_en', { withTimezone: true }).notNull(),
+  dispositivo: varchar('dispositivo', { length: 200 }),
+});
+
 export const esquema = {
+  usuarios,
+  sesiones,
   bodegas,
   articulos,
   existencias,

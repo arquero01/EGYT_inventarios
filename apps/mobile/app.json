@@ -2,7 +2,7 @@
   "expo": {
     "name": "eg&t Inventario",
     "slug": "egt-inventario",
-    "version": "1.0.0",
+    "version": "1.2.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "ios": {
@@ -11,9 +11,9 @@
     },
     "android": {
       "package": "co.egt.inventario",
-      "versionCode": 1,
+      "versionCode": 3,
       "adaptiveIcon": {
-        "backgroundColor": "#E8F3EC",
+        "backgroundColor": "#FFFFFF",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"

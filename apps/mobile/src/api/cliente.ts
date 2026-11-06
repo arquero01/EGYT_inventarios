@@ -1,6 +1,14 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { randomUUID } from 'expo-crypto';
-import { MENSAJES, validarComando, type DetalleError, type TipoComando } from '@egt/domain';
+import {
+  MENSAJES,
+  ingreso as esquemaIngreso,
+  registro as esquemaRegistro,
+  validarComando,
+  type DetalleError,
+  type TipoComando,
+  type Usuario,
+} from '@egt/domain';
 
 /**
  * Cliente de la API.
@@ -10,23 +18,30 @@ import { MENSAJES, validarComando, type DetalleError, type TipoComando } from '@
  *   (RF-23). Si no hay conexión, quedan en una cola y se envían después por
  *   /sync/push (RNF-01). Cada comando lleva un id único, así que reenviarlo
  *   nunca lo aplica dos veces.
+ * - Sesión: cada petición lleva el token de la cuenta. La sesión se guarda en
+ *   el celular, así que se puede trabajar sin conexión después de entrar una vez.
  */
 
 const CLAVE_AJUSTES = 'egt:ajustes';
 const CLAVE_COLA = 'egt:cola';
 const CLAVE_RECHAZADOS = 'egt:rechazados';
+const CLAVE_SESION = 'egt:sesion';
 const PREFIJO_CACHE = 'egt:cache:';
 const TIEMPO_ESPERA_MS = 15_000;
 
 export interface Ajustes {
   servidor: string;
-  autor: string;
   dispositivoId: string;
+}
+
+export interface Sesion {
+  token: string;
+  usuario: Usuario;
 }
 
 export interface ErrorApi {
   codigo: string;
-  tipo: 'VALIDACION' | 'CONFLICTO' | 'NO_ENCONTRADO' | 'INTERNO' | 'SIN_CONEXION';
+  tipo: 'VALIDACION' | 'CONFLICTO' | 'NO_ENCONTRADO' | 'NO_AUTENTICADO' | 'PROHIBIDO' | 'LIMITE' | 'INTERNO' | 'SIN_CONEXION';
   mensaje: string;
   detalles: DetalleError[];
 }
@@ -65,7 +80,7 @@ let ajustesEnMemoria: Ajustes | null = null;
 export async function leerAjustes(): Promise<Ajustes> {
   if (ajustesEnMemoria) return ajustesEnMemoria;
   const guardado = await AsyncStorage.getItem(CLAVE_AJUSTES);
-  const base: Ajustes = { servidor: '', autor: '', dispositivoId: `celular-${randomUUID().slice(0, 8)}` };
+  const base: Ajustes = { servidor: '', dispositivoId: `celular-${randomUUID().slice(0, 8)}` };
   ajustesEnMemoria = guardado ? { ...base, ...(JSON.parse(guardado) as Partial<Ajustes>) } : base;
   if (!guardado) await AsyncStorage.setItem(CLAVE_AJUSTES, JSON.stringify(ajustesEnMemoria));
   return ajustesEnMemoria;
@@ -86,6 +101,90 @@ export function normalizarServidor(url: string): string {
   return /^https?:\/\//i.test(limpio) ? limpio : `https://${limpio}`;
 }
 
+// ── Sesión ─────────────────────────────────────────────────────────────────
+
+let sesionEnMemoria: Sesion | null | undefined;
+const oyentesSesion = new Set<(s: Sesion | null) => void>();
+
+export async function leerSesion(): Promise<Sesion | null> {
+  if (sesionEnMemoria !== undefined) return sesionEnMemoria;
+  const t = await AsyncStorage.getItem(CLAVE_SESION);
+  sesionEnMemoria = t ? (JSON.parse(t) as Sesion) : null;
+  return sesionEnMemoria;
+}
+
+async function fijarSesion(sesion: Sesion | null) {
+  sesionEnMemoria = sesion;
+  if (sesion) await AsyncStorage.setItem(CLAVE_SESION, JSON.stringify(sesion));
+  else await AsyncStorage.removeItem(CLAVE_SESION);
+  oyentesSesion.forEach((o) => o(sesion));
+}
+
+/** La app escucha esto para mostrar el ingreso o las pantallas de trabajo. */
+export function suscribirSesion(oyente: (s: Sesion | null) => void): () => void {
+  oyentesSesion.add(oyente);
+  return () => oyentesSesion.delete(oyente);
+}
+
+export const esAdmin = (s: Sesion | null | undefined) => s?.usuario.rol === 'ADMIN';
+
+const fallaValidacion = (codigo: string, issues: { path: PropertyKey[]; message: string }[]) =>
+  new FalloApi({
+    codigo,
+    tipo: 'VALIDACION',
+    mensaje: MENSAJES[codigo as keyof typeof MENSAJES] ?? MENSAJES['RF-23'],
+    detalles: issues.map((i) => ({ campo: i.path.map(String).join('.'), problema: i.message })),
+  });
+
+export async function opcionesRegistro(): Promise<{ registroRequiereAprobacion: boolean }> {
+  return (await pedir('GET', '/auth/opciones')) as { registroRequiereAprobacion: boolean };
+}
+
+export async function ingresarCuenta(datos: { correo: string; contrasena: string }): Promise<Sesion> {
+  const r = esquemaIngreso.safeParse(datos);
+  if (!r.success) throw fallaValidacion('AUTH-11', r.error.issues);
+  const sesion = (await pedir('POST', '/auth/ingresar', r.data)) as Sesion;
+  await fijarSesion({ token: sesion.token, usuario: sesion.usuario });
+  return sesion;
+}
+
+/** Crea la cuenta. Si el servidor exige autorización devuelve { pendiente: true } y no entra. */
+export async function registrarCuenta(datos: { nombre: string; correo: string; contrasena: string }): Promise<{ pendiente: boolean; mensaje?: string }> {
+  const r = esquemaRegistro.safeParse(datos);
+  if (!r.success) throw fallaValidacion('AUTH-11', r.error.issues);
+  const resp = (await pedir('POST', '/auth/registro', r.data)) as { pendiente: boolean; token?: string; usuario: Usuario; aviso?: { mensaje: string } };
+  if (resp.pendiente || !resp.token) return { pendiente: true, mensaje: resp.aviso?.mensaje ?? MENSAJES['AUTH-03'] };
+  await fijarSesion({ token: resp.token, usuario: resp.usuario });
+  return { pendiente: false };
+}
+
+/**
+ * Cierra la sesión en el celular (y en el servidor si hay conexión). Borra las
+ * copias guardadas de consultas; la cola de operaciones pendientes se conserva.
+ */
+export async function cerrarSesionCuenta(): Promise<void> {
+  await pedir('POST', '/auth/salir', {}).catch(() => {});
+  const claves = await AsyncStorage.getAllKeys();
+  await AsyncStorage.multiRemove(claves.filter((c) => c.startsWith(PREFIJO_CACHE)));
+  await fijarSesion(null);
+}
+
+/** Actualiza nombre y rol desde el servidor (por si un administrador los cambió). */
+export async function refrescarCuenta(): Promise<void> {
+  const actual = await leerSesion();
+  if (!actual) return;
+  try {
+    const r = (await pedir('GET', '/auth/yo')) as { usuario: Usuario };
+    await fijarSesion({ ...actual, usuario: r.usuario });
+  } catch {
+    // Sin conexión: se sigue con lo guardado. Un 401 ya cierra la sesión en pedir().
+  }
+}
+
+export async function cambiarContrasena(actual: string, nueva: string): Promise<void> {
+  await pedir('POST', '/auth/contrasena', { actual, nueva });
+}
+
 // ── HTTP ───────────────────────────────────────────────────────────────────
 
 const sinConexion = (detalle: string): FalloApi =>
@@ -93,7 +192,8 @@ const sinConexion = (detalle: string): FalloApi =>
 
 async function pedir(metodo: 'GET' | 'POST', ruta: string, cuerpo?: unknown): Promise<unknown> {
   const { servidor } = await leerAjustes();
-  if (!servidor) throw sinConexion('Configure la dirección del servidor en Ajustes.');
+  if (!servidor) throw sinConexion('Configure la dirección del servidor.');
+  const sesion = await leerSesion();
 
   const control = new AbortController();
   const temporizador = setTimeout(() => control.abort(), TIEMPO_ESPERA_MS);
@@ -101,7 +201,11 @@ async function pedir(metodo: 'GET' | 'POST', ruta: string, cuerpo?: unknown): Pr
   try {
     respuesta = await fetch(`${servidor}${ruta}`, {
       method: metodo,
-      headers: { Accept: 'application/json', ...(cuerpo !== undefined ? { 'Content-Type': 'application/json' } : {}) },
+      headers: {
+        Accept: 'application/json',
+        ...(cuerpo !== undefined ? { 'Content-Type': 'application/json' } : {}),
+        ...(sesion ? { Authorization: `Bearer ${sesion.token}` } : {}),
+      },
       ...(cuerpo !== undefined ? { body: JSON.stringify(cuerpo) } : {}),
       signal: control.signal,
     });
@@ -122,6 +226,9 @@ async function pedir(metodo: 'GET' | 'POST', ruta: string, cuerpo?: unknown): Pr
   }
   if (!respuesta.ok) {
     const error = (datos as { error?: ErrorApi } | null)?.error;
+    // Sesión vencida o cuenta desactivada: vuelve a la pantalla de ingreso.
+    // La cola de operaciones pendientes no se toca: se enviará al volver a entrar.
+    if (respuesta.status === 401 && sesion && !ruta.startsWith('/auth/ingresar')) await fijarSesion(null);
     throw new FalloApi(
       error ?? { codigo: 'INTERNO', tipo: 'INTERNO', mensaje: MENSAJES.INTERNO, detalles: [{ campo: 'http', problema: `HTTP ${respuesta.status}` }] },
     );
@@ -196,7 +303,8 @@ export async function descartarRechazado(id: string) {
 
 /** Arma el sobre del comando y lo valida con las reglas del dominio (RF-23). */
 export async function prepararComando(tipo: TipoComando, payload: unknown): Promise<Sobre> {
-  const { autor, dispositivoId } = await leerAjustes();
+  const { dispositivoId } = await leerAjustes();
+  const autor = (await leerSesion())?.usuario.nombre;
   const sobre: Sobre = { id: randomUUID(), tipo, ocurridoEn: new Date().toISOString(), dispositivoId, ...(autor ? { autor } : {}), payload };
   const r = validarComando(sobre);
   if (!r.valido) throw new FalloApi(r.error.toJSON());
