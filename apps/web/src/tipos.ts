@@ -35,7 +35,17 @@ export interface ResumenInventario {
 }
 
 export interface StockPorTipo {
-  datos: { tipo: TipoEquipo; tipoNombre: string; cantidad: number; aviso?: Aviso }[];
+  datos: {
+    tipo: TipoEquipo;
+    tipoNombre: string;
+    /** En stock (disponibles en bodega o en campo para instalar). */
+    cantidad: number;
+    instalados: number;
+    enMantenimiento: number;
+    dadosDeBaja: number;
+    total: number;
+    aviso?: Aviso;
+  }[];
 }
 
 export type EstadoGarantia = 'VIGENTE' | 'POR_VENCER' | 'VENCIDA' | 'SIN_DATO';
