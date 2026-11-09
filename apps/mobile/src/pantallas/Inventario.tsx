@@ -57,7 +57,7 @@ export function Inventario() {
         etiqueta="Buscar"
         valor={busqueda}
         alCambiar={cambiar(setBusqueda)}
-        marcador="Serial, marca, modelo, proveedor, proyecto o usuario"
+        marcador="Serial o código, marca, zona, usuario, cédula o NIU"
         mayusculas="none"
         ayuda={q.length === 1 ? 'Escriba al menos 2 caracteres.' : undefined}
       />
@@ -124,13 +124,13 @@ export function TarjetaEquipo({ equipo: e, alTocar }: { equipo: EquipoEnLista; a
         <View style={{ flex: 1, marginRight: espacio.s }}>
           <Text style={{ fontSize: 16, fontWeight: '700', color: color.texto }}>{e.serial}</Text>
           <TextoSuave>
-            {e.tipoNombre} · {e.marca} {e.modelo}
+            {e.tipoNombre} · {[e.marca, e.modelo].filter(Boolean).join(' ') || e.descripcion || 'Sin marca'}
           </TextoSuave>
         </View>
         <InsigniaEstado estado={e.estado} />
       </View>
       <Text style={{ marginTop: espacio.s, fontSize: 13, color: color.textoSuave }}>
-        {e.ubicacion === 'BODEGA' ? `📦 ${e.bodega?.nombre ?? 'Bodega'}` : `📍 En campo · ${e.proyecto.nombre}`}
+        {e.ubicacion === 'BODEGA' ? `📦 ${e.bodega?.nombre ?? 'Bodega'}` : `📍 En campo · ${e.proyecto?.nombre ?? e.zona ?? 'Sin proyecto'}`}
         {e.usuarioFinal ? ` · ${e.usuarioFinal.nombre}` : ''}
       </Text>
     </Tarjeta>

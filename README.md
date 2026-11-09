@@ -16,6 +16,35 @@ El proyecto tiene cinco partes:
 
 El panel y la app usan el logo de eg&t (`apps/web/public/logo-egt.png` y `apps/mobile/assets/logo-egt.png`) y sus azules: `#0093FF`, `#22A5FF`, `#39AFFF` y `#5AC3FF`, con azul noche `#0A2540` para menús y encabezados. Para botones y enlaces se usa `#006FC8`, el mismo azul más profundo, porque el del logo no alcanza a leerse bien con letra blanca. Verde (instalado) y ámbar (mantenimiento, pendiente) quedan solo para los estados. El ícono de la app se generó con el logo; con una versión del logo en mayor tamaño o en vector (SVG) quedaría más nítido.
 
+## Importar equipos desde Excel
+
+En el panel: **Equipos → Importar desde Excel**.
+
+1. **Descargar plantilla** trae la hoja *Equipos* con los encabezados, las *Instrucciones* de cada columna y la lista de *Proyectos y bodegas* que ya existen.
+2. Llénela (una fila por equipo) o use su propia hoja: las columnas se reconocen aunque tengan nombres parecidos («Número de serie», «Referencia», «Precio»…) y los encabezados no tienen que estar en la primera fila. Desde Google Sheets: **Archivo → Descargar → Microsoft Excel (.xlsx)**.
+3. Súbala. El panel revisa cada fila con las mismas reglas del ingreso manual y muestra los errores por columna (tipo no válido, NIT incorrecto, proyecto o bodega que no existen, serial repetido en el archivo…).
+4. **Importar** guarda las filas correctas una por una; las que tienen errores no se guardan. Con **Descargar filas por corregir** obtiene un Excel solo con esas filas y el motivo, para corregirlas y subirlas de nuevo.
+
+Detalles: serial vacío → el sistema asigna uno de la empresa; unidad vacía → la habitual del tipo (W para paneles e inversores, Ah para baterías de gel, kWh para litio, A para medidores y controladores); fechas como `15/03/2026` o fecha de Excel; valores como `520000`, `520.000` o `$ 520.000`. Máximo 2000 equipos por archivo. Reintentar un archivo no duplica los equipos que ya se guardaron en ese intento.
+
+### El archivo de inventario de la empresa
+
+El archivo que ya maneja la empresa (*COMPRAS_INVENTARIOS_UNIFICADOS*, hoja **Histórico**) se sube en la misma pantalla y el panel lo reconoce solo por sus encabezados (CÓDIGO INTERNO, TIPO DE EQUIPO, CENTRO DE COSTOS…). Si el archivo tiene varias hojas con ese formato, se elige cuál importar. Solo un administrador puede importarlo.
+
+| En el archivo | En el sistema |
+| --- | --- |
+| Código interno (`EG&T-BGEL-0051`) | Identificador del equipo. Sin código: el serial del fabricante, y si tampoco hay, uno de la empresa (`EGT-…`) |
+| Serial | Serial del fabricante (se puede buscar) |
+| Centro de costos | **Zona** (una zona puede tener varios proyectos). El proyecto queda «por completar» |
+| Usuario (cédula), NIU, nombre, fecha de entrega | Usuario final e instalación. Si la cédula ya existe, se reutiliza |
+| Estado y notas (`PERDIDOS`, `DISP FINAL`, `PRESENTAN FALLAS`, `DISPONIBLE`…) | Perdido o disposición final → dado de baja · daño o garantía → en mantenimiento · disponible → en stock (en la bodega que se elija) · lo demás → instalado |
+| Descripción | Descripción, y de ahí la potencia o capacidad (`TB12-200` → 200 Ah, `1.000W` → 1000 W, `3072WH` → 3072 Wh) |
+| Proveedor, ID factura, fecha de compra, valor, fin de garantía | Compra y garantía. «TB PLUS» y «TBPLUS» quedan como el mismo proveedor; fechas de texto en orden mes/día/año |
+
+Lo que falta o viene como `PENDIENTE`, `PDTE…`, `En Espera`, `#N/D` o `-` queda en la lista **«por completar»** del equipo. En **Equipos** el filtro *Revisión* muestra los que tienen datos por completar, los que no tienen proyecto o los de garantía vencida o por vencer, y el filtro *Zona* los de cada centro de costos. En la hoja de vida, **Asignar proyecto** ubica un equipo del histórico en su proyecto (también si ya está instalado).
+
+No se importan las filas sin tipo de equipo, con un tipo que no existe en el sistema (por ejemplo «CABLE SOLAR») o con un código interno repetido en el archivo: **Descargar filas por revisar** las entrega con el motivo, junto con las que quedaron con datos por completar. Volver a subir el mismo archivo no duplica nada: el panel reconoce las filas que ya se guardaron. Con el archivo de prueba (2.094 filas) se importaron 2.073 equipos en unos 35 segundos.
+
 ## Aplicación de escritorio (Windows)
 
 Con la aplicación de escritorio, **el computador de la oficina hace de servidor**: guarda los datos, muestra el panel en su propia ventana y los celulares se conectan a él por el WiFi. No depende de Codespaces ni de internet.
@@ -65,6 +94,7 @@ Al ejecutar `pnpm build` (o `pnpm build:web`), el servidor sirve el panel en su 
 | Inicio | Dónde están los equipos (en stock, instalados, mantenimiento, baja; en bodega o en campo), stock por tipo, últimas guías y, para administradores, cuentas por autorizar y operaciones rechazadas |
 | Equipos | Tabla con búsqueda por serial, nombre o **cédula del usuario final** y filtros por tipo, estado, bodega y proyecto; hoja de vida con historial y acciones (instalar, retirar, mantenimiento, cambio de proyecto, baja) |
 | Ingreso de equipo | Formulario por unidad con la opción de seguir con la siguiente unidad de la misma factura |
+| Importar desde Excel | Carga masiva desde un archivo .xlsx (Excel o Google Sheets descargado) o .csv, con revisión fila por fila antes de guardar. Reconoce también el archivo de inventario de la empresa (hoja «Histórico») |
 | Proyectos, Bodegas, Artículos | Listas, fichas, kardex e ingreso de artículos con factura |
 | Guías | Todas las guías numeradas; despacho, traslado y devolución con equipos y artículos en una misma guía; la guía se puede imprimir |
 | Cuentas | Solo administradores |

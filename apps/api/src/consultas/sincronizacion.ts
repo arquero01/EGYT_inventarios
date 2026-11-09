@@ -31,7 +31,7 @@ async function leerCambios(db: Transaccion, desde: number, limite: number) {
         },
       })
       .from(equipos)
-      .innerJoin(compras, eq(compras.id, equipos.compraId))
+      .leftJoin(compras, eq(compras.id, equipos.compraId))
       .where(gt(equipos.rev, desde))
       .orderBy(asc(equipos.rev))
       .limit(limite);

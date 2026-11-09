@@ -99,15 +99,35 @@ export async function pedir<T = unknown>(metodo: Metodo, ruta: string, cuerpo?: 
   return datos as T;
 }
 
-export const nuevoId = () => crypto.randomUUID();
+/**
+ * crypto.randomUUID solo existe en páginas seguras (https o localhost). Si el
+ * panel se abre por la red local (http://192.168…), se arma el UUID a mano.
+ */
+export const nuevoId = (): string => {
+  if (typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+  const b = crypto.getRandomValues(new Uint8Array(16));
+  b[6] = (b[6]! & 0x0f) | 0x40;
+  b[8] = (b[8]! & 0x3f) | 0x80;
+  const h = [...b].map((x) => x.toString(16).padStart(2, '0')).join('');
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
+};
 
 /**
  * Valida y envía una operación. Lanza FalloApi con los errores por campo
  * (los campos llegan como "payload.compra.nit").
  */
-export async function enviarComando(tipo: TipoComando, payload: unknown): Promise<Record<string, unknown>> {
+export async function enviarComando(tipo: TipoComando, payload: unknown, id: string = nuevoId()): Promise<Record<string, unknown>> {
+  return (await enviarComandoConResultado(tipo, payload, id)).respuesta;
+}
+
+/** Igual que enviarComando, pero dice además si el servidor ya la tenía (mismo id: no se aplicó dos veces). */
+export async function enviarComandoConResultado(
+  tipo: TipoComando,
+  payload: unknown,
+  id: string = nuevoId(),
+): Promise<{ respuesta: Record<string, unknown>; duplicado: boolean }> {
   const sobre = {
-    id: nuevoId(),
+    id,
     tipo,
     ocurridoEn: new Date().toISOString(),
     dispositivoId: 'panel-web',
@@ -116,8 +136,8 @@ export async function enviarComando(tipo: TipoComando, payload: unknown): Promis
   };
   const v = validarComando(sobre);
   if (!v.valido) throw new FalloApi(v.error.toJSON());
-  const r = await pedir<{ respuesta?: Record<string, unknown> }>('POST', '/comandos', { ...sobre, payload: v.comando.payload });
-  return r.respuesta ?? {};
+  const r = await pedir<{ respuesta?: Record<string, unknown>; duplicado?: boolean }>('POST', '/comandos', { ...sobre, payload: v.comando.payload });
+  return { respuesta: r.respuesta ?? {}, duplicado: r.duplicado === true };
 }
 
 // ── Cuentas ────────────────────────────────────────────────────────────────

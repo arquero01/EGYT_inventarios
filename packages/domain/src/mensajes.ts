@@ -46,6 +46,9 @@ export const MENSAJES = {
   'RL-10-NO-EXISTE': 'Error: El movimiento consultado no existe.',
   'RL-11': 'Aviso: La bodega no tiene existencias.',
 
+  // Importación del histórico (propio).
+  'IMP-01': 'Error de validación: revise los datos del equipo en el archivo.',
+
   // Cuentas de usuario (propio).
   'AUTH-01': 'Error: Correo o contraseña incorrectos.',
   'AUTH-02': 'Error: Ya existe una cuenta con ese correo.',

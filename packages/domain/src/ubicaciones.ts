@@ -16,7 +16,8 @@ export interface PosicionEquipo {
   estado: EstadoEquipo;
   ubicacion: Ubicacion;
   bodegaId: string | null;
-  proyectoId: string;
+  /** null: equipo del histórico sin proyecto asignado todavía. */
+  proyectoId: string | null;
 }
 
 export interface DatosMovimiento {
@@ -54,6 +55,7 @@ export function evaluarMovimientoEquipo(e: PosicionEquipo, m: DatosMovimiento): 
     case 'DEVOLUCION':
       if (e.estado === 'INSTALADO') return fallo('El equipo está instalado: primero debe retirarse de la vivienda (RF-13)');
       if (e.ubicacion !== 'CAMPO') return fallo('El equipo ya está en una bodega');
+      if (e.proyectoId === null) return fallo('El equipo no tiene proyecto asignado: asígnele uno primero');
       if (e.proyectoId !== m.proyectoId) return fallo('El equipo pertenece a otro proyecto');
       return { ok: true, ubicacion: 'BODEGA', bodegaId: m.bodegaDestinoId ?? null };
   }

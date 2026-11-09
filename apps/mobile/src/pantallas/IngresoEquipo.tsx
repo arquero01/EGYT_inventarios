@@ -15,6 +15,7 @@ const UNIDAD_SUGERIDA: Record<TipoEquipo, UnidadCapacidad> = {
   BATERIA_LITIO: 'kWh',
   INVERSOR: 'W',
   MEDIDOR: 'A',
+  CONTROLADOR: 'A',
 };
 
 /** RF-06 (equipo), RF-07 (serial único), RF-08 (compra) y RL-02 (bodega de llegada). */

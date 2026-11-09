@@ -5,3 +5,4 @@ dist/
 .pglite/
 package-lock.json
 *.tar.gz
+*.tsbuildinfo

@@ -38,18 +38,27 @@ export interface StockPorTipo {
   datos: { tipo: TipoEquipo; tipoNombre: string; cantidad: number; aviso?: Aviso }[];
 }
 
+export type EstadoGarantia = 'VIGENTE' | 'POR_VENCER' | 'VENCIDA' | 'SIN_DATO';
+
 export interface EquipoEnLista {
   id: string;
   tipo: TipoEquipo;
   tipoNombre: string;
-  marca: string;
-  modelo: string;
+  marca: string | null;
+  modelo: string | null;
   serial: string;
+  serialFabricante: string | null;
+  descripcion: string | null;
+  zona: string | null;
+  garantiaHasta: string | null;
+  garantia: EstadoGarantia;
+  pendientes: string[];
   estado: EstadoEquipo;
   estadoNombre: string;
   ubicacion: Ubicacion;
   bodega: { id: string; nombre: string } | null;
-  proyecto: { id: string; nombre: string };
+  /** null en equipos del histórico que todavía no tienen proyecto. */
+  proyecto: { id: string; nombre: string } | null;
   usuarioFinal: { id: string; nombre: string; cedula: string } | null;
 }
 
@@ -61,10 +70,10 @@ export interface ListaEquipos {
 
 export interface Instalacion {
   id: string;
-  usuarioFinal: { id: string; nombre: string; cedula: string; telefono: string };
-  ubicacion: { vereda: string; municipio: string; departamento: string };
+  usuarioFinal: { id: string; nombre: string; cedula: string; telefono: string | null; niu: string | null };
+  ubicacion: { vereda: string | null; municipio: string | null; departamento: string | null };
   fechaInstalacion: string;
-  tecnico: string;
+  tecnico: string | null;
   vigente: boolean;
   finalizadaEn: string | null;
   motivoFin: string | null;
@@ -75,12 +84,18 @@ export interface HojaDeVida {
     id: string;
     tipo: TipoEquipo;
     tipoNombre: string;
-    marca: string;
-    modelo: string;
+    marca: string | null;
+    modelo: string | null;
     serial: string;
     origenSerial: OrigenSerial;
-    potencia: number;
-    unidad: UnidadCapacidad;
+    serialFabricante: string | null;
+    descripcion: string | null;
+    zona: string | null;
+    garantiaHasta: string | null;
+    garantia: EstadoGarantia;
+    pendientes: string[];
+    potencia: number | null;
+    unidad: UnidadCapacidad | null;
     estado: EstadoEquipo;
     estadoNombre: string;
     fechaIngreso: string;
@@ -89,8 +104,9 @@ export interface HojaDeVida {
     accionesPermitidas: Accion[];
     movimientosPosibles: MovimientoEquipo[];
   };
-  proyecto: { id: string; nombre: string; vereda: string; municipio: string; departamento: string };
-  compra: { proveedor: string; nit: string; numeroFactura: string; fechaCompra: string; valorPagado: number };
+  proyecto: { id: string; nombre: string; vereda: string; municipio: string; departamento: string } | null;
+  compra: { proveedor: string; nit: string | null; numeroFactura: string | null; fechaCompra: string | null; valorPagado: number | null } | null;
+  valorPagado: number | null;
   instalacionActual: Instalacion | null;
   instalacionesAnteriores: Instalacion[];
   historial: {

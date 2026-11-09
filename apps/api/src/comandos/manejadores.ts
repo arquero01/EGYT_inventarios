@@ -1,9 +1,8 @@
-import { eq } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 import {
   ACCIONES_QUE_CIERRAN_INSTALACION,
   ErrorDominio,
   NOMBRE_ESTADO,
-  PREFIJO_SERIAL,
   errorConflicto,
   fechaColombia,
   normalizarSerial,
@@ -23,11 +22,12 @@ import {
   exigirProyecto,
   nombreEquipo,
   obtenerOCrearCompra,
+  asignarSerialEmpresa,
   registrarEvento,
-  siguienteConsecutivo,
   type FilaEquipo,
   type Manejador,
 } from './comunes.ts';
+import { importarHistorico } from './historico.ts';
 import { MANEJADORES_LOGISTICA } from './logistica.ts';
 
 /**
@@ -61,11 +61,6 @@ async function aplicarAccion(
 }
 
 /** Serial asignado por la empresa: EGT-PAN-000001. El contador es atómico. */
-async function asignarSerialEmpresa(tx: Transaccion, tipo: TipoEquipo): Promise<string> {
-  const prefijo = PREFIJO_SERIAL[tipo];
-  const numero = await siguienteConsecutivo(tx, prefijo);
-  return `EGT-${prefijo}-${String(numero).padStart(6, '0')}`;
-}
 
 // ── Manejadores ────────────────────────────────────────────────────────────
 
@@ -138,14 +133,26 @@ const cambiarProyecto: Manejador<'CAMBIAR_PROYECTO'> = async (tx, c) => {
   const equipo = await cargarEquipo(tx, c.payload.equipoId);
   await exigirProyecto(tx, c.payload.proyectoId);
   if (equipo.proyectoId === c.payload.proyectoId) throw errorConflicto('PROY-MISMO');
-  transicion(equipo.estado, 'CAMBIAR_PROYECTO');
-  await tx.update(equipos).set({ proyectoId: c.payload.proyectoId }).where(eq(equipos.id, equipo.id));
+  // Equipos del histórico sin proyecto: se les puede asignar uno en cualquier
+  // estado (menos de baja), también si ya están instalados.
+  const asignacionInicial = equipo.proyectoId === null && equipo.estado !== 'DADO_DE_BAJA';
+  if (!asignacionInicial) transicion(equipo.estado, 'CAMBIAR_PROYECTO');
+  await tx
+    .update(equipos)
+    .set({ proyectoId: c.payload.proyectoId, pendientes: equipo.pendientes.filter((p) => p.toLowerCase() !== 'proyecto') })
+    .where(eq(equipos.id, equipo.id));
+  if (asignacionInicial) {
+    await tx
+      .update(instalaciones)
+      .set({ proyectoId: c.payload.proyectoId })
+      .where(and(eq(instalaciones.equipoId, equipo.id), eq(instalaciones.vigente, true), isNull(instalaciones.proyectoId)));
+  }
   await registrarEvento(tx, c, {
     equipoId: equipo.id,
     tipo: 'CAMBIO_PROYECTO',
     estadoAnterior: equipo.estado,
     estadoNuevo: equipo.estado,
-    descripcion: 'Equipo reasignado a otro proyecto',
+    descripcion: asignacionInicial ? 'Proyecto asignado al equipo' : 'Equipo reasignado a otro proyecto',
     datos: { proyectoAnterior: equipo.proyectoId, proyectoNuevo: c.payload.proyectoId },
   });
   return { equipoId: equipo.id, proyectoId: c.payload.proyectoId };
@@ -254,5 +261,6 @@ export const MANEJADORES: { [T in TipoComando]: Manejador<T> } = {
   ENVIAR_A_MANTENIMIENTO: enviarAMantenimiento,
   FINALIZAR_MANTENIMIENTO: finalizarMantenimiento,
   DAR_DE_BAJA: darDeBaja,
+  IMPORTAR_HISTORICO: importarHistorico,
   ...MANEJADORES_LOGISTICA,
 };

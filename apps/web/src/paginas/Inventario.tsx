@@ -6,7 +6,15 @@ import type { BodegaEnLista, ListaEquipos, ProyectoEnLista } from '../tipos.ts';
 import { Aviso, BotonEnlace, FilaVinculada, InsigniaEstado, Lectura, Lista, Pagina, Paginacion, Vacio } from '../ui/componentes.tsx';
 import { Icono } from '../ui/iconos.tsx';
 
-const FILTROS = ['q', 'tipo', 'estado', 'ubicacion', 'bodegaId', 'proyectoId', 'pagina'] as const;
+const FILTROS = ['q', 'tipo', 'estado', 'ubicacion', 'bodegaId', 'proyectoId', 'zona', 'pendientes', 'sinProyecto', 'garantia', 'pagina'] as const;
+
+/** Filtros de revisión: cada opción es un parámetro distinto de la consulta. */
+const REVISION = [
+  { valor: 'pendientes', etiqueta: 'Con datos por completar', param: 'pendientes', dato: 'si' },
+  { valor: 'sinProyecto', etiqueta: 'Sin proyecto asignado', param: 'sinProyecto', dato: 'si' },
+  { valor: 'POR_VENCER', etiqueta: 'Garantía por vencer (30 días)', param: 'garantia', dato: 'POR_VENCER' },
+  { valor: 'VENCIDA', etiqueta: 'Garantía vencida', param: 'garantia', dato: 'VENCIDA' },
+] as const;
 
 /** RF-18 a RF-21: búsqueda por serial, usuario o cédula y filtros combinables. */
 export function Inventario() {
@@ -14,6 +22,16 @@ export function Inventario() {
   const [texto, setTexto] = useState(params.get('q') ?? '');
   const bodegas = useLectura<{ datos: BodegaEnLista[] }>('/bodegas');
   const proyectos = useLectura<{ datos: ProyectoEnLista[] }>('/proyectos');
+  const zonas = useLectura<{ datos: { zona: string; equipos: number }[] }>('/zonas');
+  const revision = REVISION.find((r) => params.get(r.param) === r.dato)?.valor ?? '';
+  const cambiarRevision = (valor: string) => {
+    const nuevos = new URLSearchParams(params);
+    for (const r of REVISION) nuevos.delete(r.param);
+    const elegida = REVISION.find((r) => r.valor === valor);
+    if (elegida) nuevos.set(elegida.param, elegida.dato);
+    nuevos.delete('pagina');
+    setParams(nuevos, { replace: true });
+  };
 
   const cambiar = (clave: (typeof FILTROS)[number], valor: string) => {
     const nuevos = new URLSearchParams(params);
@@ -44,11 +62,16 @@ export function Inventario() {
   return (
     <Pagina
       titulo="Equipos"
-      descripcion="Paneles, baterías, inversores y medidores con serial. Busque por serial, usuario final o cédula."
+      descripcion="Paneles, baterías, inversores, controladores y medidores. Busque por serial o código, usuario final, cédula, NIU o zona."
       acciones={
-        <BotonEnlace a="/equipos/nuevo" icono="mas">
-          Ingresar equipo
-        </BotonEnlace>
+        <>
+          <BotonEnlace a="/equipos/nuevo" icono="mas">
+            Ingresar equipo
+          </BotonEnlace>
+          <BotonEnlace a="/equipos/importar" variante="secundario">
+            Importar desde Excel
+          </BotonEnlace>
+        </>
       }
     >
       <div className="filtros">
@@ -57,7 +80,7 @@ export function Inventario() {
             Buscar
           </label>
           <Icono nombre="buscar" />
-          <input id="buscar" type="search" value={texto} onChange={(e) => setTexto(e.target.value)} placeholder="Serial, nombre o cédula" autoComplete="off" />
+          <input id="buscar" type="search" value={texto} onChange={(e) => setTexto(e.target.value)} placeholder="Serial, código, nombre, cédula o NIU" autoComplete="off" />
         </div>
         <Lista etiqueta="Tipo" clase="visualmente-oculto-etiqueta" valor={params.get('tipo') ?? ''} alCambiar={(v) => cambiar('tipo', v)} vacia="Todos los tipos" opciones={TIPOS_EQUIPO.map((t) => ({ valor: t, etiqueta: NOMBRE_TIPO_EQUIPO[t] }))} />
         <Lista etiqueta="Estado" clase="visualmente-oculto-etiqueta" valor={params.get('estado') ?? ''} alCambiar={(v) => cambiar('estado', v)} vacia="Todos los estados" opciones={ESTADOS_EQUIPO.map((e) => ({ valor: e, etiqueta: NOMBRE_ESTADO[e] }))} />
@@ -76,6 +99,24 @@ export function Inventario() {
           alCambiar={(v) => cambiar('proyectoId', v)}
           vacia="Todos los proyectos"
           opciones={(proyectos.datos?.datos ?? []).map((p) => ({ valor: p.id, etiqueta: p.nombre }))}
+        />
+        {zonas.datos && zonas.datos.datos.length > 0 ? (
+          <Lista
+            etiqueta="Zona"
+            clase="visualmente-oculto-etiqueta"
+            valor={params.get('zona') ?? ''}
+            alCambiar={(v) => cambiar('zona', v)}
+            vacia="Todas las zonas"
+            opciones={zonas.datos.datos.map((z) => ({ valor: z.zona, etiqueta: `${z.zona} (${z.equipos})` }))}
+          />
+        ) : null}
+        <Lista
+          etiqueta="Revisión"
+          clase="visualmente-oculto-etiqueta"
+          valor={revision}
+          alCambiar={cambiarRevision}
+          vacia="Sin filtro de revisión"
+          opciones={REVISION.map((r) => ({ valor: r.valor, etiqueta: r.etiqueta }))}
         />
       </div>
 
@@ -113,7 +154,7 @@ export function Inventario() {
                         <th>Equipo</th>
                         <th>Estado</th>
                         <th>Dónde está</th>
-                        <th>Proyecto</th>
+                        <th>Proyecto y zona</th>
                         <th>Usuario final</th>
                       </tr>
                     </thead>
@@ -127,15 +168,21 @@ export function Inventario() {
                           </td>
                           <td>
                             {e.tipoNombre}
-                            <span className="secundaria">
-                              {e.marca} {e.modelo}
-                            </span>
+                            <span className="secundaria">{[e.marca, e.modelo].filter(Boolean).join(' ') || e.descripcion || ''}</span>
                           </td>
                           <td>
                             <InsigniaEstado estado={e.estado} />
                           </td>
                           <td>{e.ubicacion === 'BODEGA' ? (e.bodega?.nombre ?? 'Bodega') : 'En campo'}</td>
-                          <td>{e.proyecto.nombre}</td>
+                          <td>
+                            {e.proyecto ? e.proyecto.nombre : <span className="pendiente-dato">Sin proyecto</span>}
+                            {e.zona ? <span className="secundaria">{e.zona}</span> : null}
+                            {e.pendientes.length > 0 ? (
+                              <span className="secundaria" title={`Por completar: ${e.pendientes.join(', ')}`}>
+                                {e.pendientes.length === 1 ? '1 dato por completar' : `${e.pendientes.length} datos por completar`}
+                              </span>
+                            ) : null}
+                          </td>
                           <td>
                             {e.usuarioFinal ? (
                               <>

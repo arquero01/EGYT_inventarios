@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useState, type FormEvent, type ReactNode } from 'react';
 import { Link, useParams } from 'react-router';
 import { NOMBRE_MOVIMIENTO, NOMBRE_ESTADO, type Accion, type TipoComando } from '@egt/domain';
 import { nuevoId } from '../api.ts';
@@ -21,28 +21,50 @@ export function Equipo() {
       {(d) => {
         const e = d.equipo;
         const acciones = e.accionesPermitidas.filter((a) => a !== 'DAR_DE_BAJA' || esAdmin);
-        const origen = e.ubicacion === 'BODEGA' ? `bodegaId=${e.bodega?.id ?? ''}` : `proyectoId=${d.proyecto.id}`;
+        const origen = e.ubicacion === 'BODEGA' ? `bodegaId=${e.bodega?.id ?? ''}` : `proyectoId=${d.proyecto?.id ?? ''}`;
+        const nombreAccion = (a: Accion) => (a === 'CAMBIAR_PROYECTO' && !d.proyecto ? 'Asignar proyecto' : NOMBRE_ACCION[a]);
+        const instalacion = d.instalacionActual;
         return (
           <Pagina
             titulo={<span className="serial">{e.serial}</span>}
-            descripcion={`${e.tipoNombre} ${e.marca} ${e.modelo}, ${cantidad(e.potencia)} ${e.unidad}. ${e.origenSerial === 'EMPRESA' ? 'Serial asignado por la empresa.' : 'Serial del proveedor.'}`}
+            descripcion={`${[e.tipoNombre, e.marca, e.modelo].filter(Boolean).join(' ')}${e.potencia != null ? `, ${cantidad(e.potencia)} ${e.unidad ?? ''}` : ''}. ${ORIGEN_SERIAL[e.origenSerial]}`}
             volver={{ a: '/inventario', texto: 'Equipos' }}
             acciones={<InsigniaEstado estado={e.estado} />}
           >
             {hecho ? <Aviso tipo="exito">{hecho}</Aviso> : null}
             {e.estado === 'DADO_DE_BAJA' ? <Aviso tipo="info">Este equipo está dado de baja: su registro ya no se puede modificar (RF-15).</Aviso> : null}
+            {e.pendientes.length > 0 ? (
+              <Aviso tipo="atencion">
+                Equipo importado del inventario histórico. <b>Por completar:</b> {e.pendientes.join(', ')}.
+                {!d.proyecto && e.estado !== 'DADO_DE_BAJA' ? ' Use «Asignar proyecto» para ubicarlo en uno.' : ''}
+              </Aviso>
+            ) : null}
 
-            <div className="superficie" style={{ marginTop: hecho || e.estado === 'DADO_DE_BAJA' ? 16 : 0 }}>
+            <div className="superficie" style={{ marginTop: hecho || e.estado === 'DADO_DE_BAJA' || e.pendientes.length > 0 ? 16 : 0 }}>
               <Datos
                 pares={[
-                  ['Dónde está', e.ubicacion === 'BODEGA' ? (e.bodega ? <Link to={`/bodegas/${e.bodega.id}`}>{e.bodega.nombre}</Link> : 'Bodega') : `En campo, ${d.proyecto.vereda}`],
-                  ['Proyecto', <Link to={`/proyectos/${d.proyecto.id}`}>{d.proyecto.nombre}</Link>],
-                  ['Municipio', `${d.proyecto.municipio}, ${d.proyecto.departamento}`],
+                  [
+                    'Dónde está',
+                    e.ubicacion === 'BODEGA'
+                      ? e.bodega
+                        ? <Link to={`/bodegas/${e.bodega.id}`}>{e.bodega.nombre}</Link>
+                        : 'Bodega'
+                      : `En campo${d.proyecto?.vereda ? `, ${d.proyecto.vereda}` : instalacion?.ubicacion.vereda ? `, ${instalacion.ubicacion.vereda}` : ''}`,
+                  ],
+                  ['Proyecto', d.proyecto ? <Link to={`/proyectos/${d.proyecto.id}`}>{d.proyecto.nombre}</Link> : <PorCompletar />],
+                  ...(e.zona ? ([['Zona', e.zona]] as [string, string][]) : []),
+                  ...(d.proyecto ? ([['Municipio', `${d.proyecto.municipio}, ${d.proyecto.departamento}`]] as [string, string][]) : []),
+                  ...(e.serialFabricante ? ([['Serial del fabricante', <span className="serial">{e.serialFabricante}</span>]] as [string, ReactNode][]) : []),
+                  ...(e.descripcion ? ([['Descripción', e.descripcion]] as [string, string][]) : []),
                   ['Fecha de ingreso', fecha(e.fechaIngreso)],
-                  ['Proveedor', d.compra.proveedor],
-                  ['Factura', `${d.compra.numeroFactura} (NIT ${d.compra.nit})`],
-                  ['Fecha de compra', fecha(d.compra.fechaCompra)],
-                  ['Valor pagado', pesos(d.compra.valorPagado)],
+                  ['Proveedor', d.compra?.proveedor ?? <PorCompletar />],
+                  [
+                    'Factura',
+                    d.compra?.numeroFactura ? `${d.compra.numeroFactura}${d.compra.nit ? ` (NIT ${d.compra.nit})` : ''}` : <PorCompletar />,
+                  ],
+                  ['Fecha de compra', d.compra?.fechaCompra ? fecha(d.compra.fechaCompra) : <PorCompletar />],
+                  ['Valor pagado', d.valorPagado != null ? pesos(d.valorPagado) : <PorCompletar />],
+                  ['Garantía', <Garantia hasta={e.garantiaHasta} estado={e.garantia} />],
                 ]}
               />
             </div>
@@ -52,7 +74,7 @@ export function Equipo() {
                 <div className="acciones">
                   {acciones.map((a) => (
                     <Boton key={a} variante={a === 'DAR_DE_BAJA' ? 'peligro' : a === 'INSTALAR' ? 'primario' : 'secundario'} onClick={() => setAccion(a)}>
-                      {NOMBRE_ACCION[a]}
+                      {nombreAccion(a)}
                     </Boton>
                   ))}
                   {e.movimientosPosibles.map((m) => (
@@ -116,17 +138,41 @@ export function Equipo() {
   );
 }
 
+const ORIGEN_SERIAL = {
+  PROVEEDOR: 'Serial del proveedor.',
+  EMPRESA: 'Serial asignado por la empresa.',
+  INTERNO: 'Código interno de la empresa.',
+} as const;
+
+function PorCompletar() {
+  return <span className="pendiente-dato">Por completar</span>;
+}
+
+const TEXTO_GARANTIA = { VIGENTE: 'vigente', POR_VENCER: 'por vencer', VENCIDA: 'vencida', SIN_DATO: '' } as const;
+
+function Garantia({ hasta, estado }: { hasta: string | null; estado: HojaDeVida['equipo']['garantia'] }) {
+  if (!hasta) return <PorCompletar />;
+  return (
+    <>
+      Hasta {fecha(hasta)}{' '}
+      <span className={`insignia ${estado === 'VIGENTE' ? 'INSTALADO' : estado === 'POR_VENCER' ? 'EN_MANTENIMIENTO' : 'DADO_DE_BAJA'}`}>{TEXTO_GARANTIA[estado]}</span>
+    </>
+  );
+}
+
 function TarjetaInstalacion({ i }: { i: Instalacion }) {
+  const lugar = [i.ubicacion.vereda, i.ubicacion.municipio].filter(Boolean).join(', ');
   return (
     <div className="superficie">
       <Datos
         pares={[
           ['Usuario final', i.usuarioFinal.nombre],
           ['Cédula', <span className="num">{i.usuarioFinal.cedula}</span>],
-          ['Teléfono', <span className="num">{i.usuarioFinal.telefono}</span>],
-          ['Ubicación', `${i.ubicacion.vereda}, ${i.ubicacion.municipio}`],
+          ...(i.usuarioFinal.niu ? ([['NIU', <span className="num">{i.usuarioFinal.niu}</span>]] as [string, ReactNode][]) : []),
+          ['Teléfono', i.usuarioFinal.telefono ? <span className="num">{i.usuarioFinal.telefono}</span> : <PorCompletar />],
+          ['Ubicación', lugar || '—'],
           ['Instalado el', fecha(i.fechaInstalacion)],
-          ['Técnico', i.tecnico],
+          ['Técnico', i.tecnico ?? '—'],
           ...(i.finalizadaEn ? ([['Finalizó', `${fecha(i.finalizadaEn)}${i.motivoFin ? `: ${i.motivoFin}` : ''}`]] as [string, string][]) : []),
         ]}
       />
@@ -144,9 +190,9 @@ function FormularioAccion({ accion, hoja, alCerrar, alTerminar }: { accion: Acci
     nombre: '',
     cedula: '',
     telefono: '',
-    vereda: hoja.proyecto.vereda,
-    municipio: hoja.proyecto.municipio,
-    departamento: hoja.proyecto.departamento,
+    vereda: hoja.proyecto?.vereda ?? '',
+    municipio: hoja.proyecto?.municipio ?? hoja.equipo.zona ?? '',
+    departamento: hoja.proyecto?.departamento ?? '',
     fechaInstalacion: hoy(),
     tecnico: sesion?.usuario.nombre ?? '',
     motivo: '',
@@ -198,7 +244,7 @@ function FormularioAccion({ accion, hoja, alCerrar, alTerminar }: { accion: Acci
   const pideMotivo = accion === 'RETIRAR' || accion === 'ENVIAR_A_MANTENIMIENTO' || accion === 'DAR_DE_BAJA';
   const visibles = ['usuario', 'ubicacion', 'fechaInstalacion', 'tecnico', 'motivo', 'observacion', 'proyectoId', 'confirmacion'];
   return (
-    <Cajon titulo={NOMBRE_ACCION[accion]} descripcion={<>Equipo <span className="serial">{e.serial}</span></>} alCerrar={alCerrar}>
+    <Cajon titulo={accion === 'CAMBIAR_PROYECTO' && !hoja.proyecto ? 'Asignar proyecto' : NOMBRE_ACCION[accion]} descripcion={<>Equipo <span className="serial">{e.serial}</span></>} alCerrar={alCerrar}>
       <form className="formulario" onSubmit={guardar} noValidate>
         <ErrorFormulario mensaje={f.mensaje} errores={f.errores} visibles={visibles} />
         {accion === 'INSTALAR' ? (
@@ -238,7 +284,7 @@ function FormularioAccion({ accion, hoja, alCerrar, alTerminar }: { accion: Acci
             valor={v.proyectoId}
             alCambiar={cambiar('proyectoId')}
             error={f.errorDe('proyectoId')}
-            opciones={(proyectos.datos?.datos ?? []).filter((p) => p.id !== hoja.proyecto.id).map((p) => ({ valor: p.id, etiqueta: `${p.nombre} (${p.municipio})` }))}
+            opciones={(proyectos.datos?.datos ?? []).filter((p) => p.id !== hoja.proyecto?.id).map((p) => ({ valor: p.id, etiqueta: `${p.nombre} (${p.municipio})` }))}
           />
         ) : null}
 

@@ -10,6 +10,7 @@ import { Inicio } from './paginas/Inicio.tsx';
 import { Inventario } from './paginas/Inventario.tsx';
 import { Equipo } from './paginas/Equipo.tsx';
 import { IngresoEquipo } from './paginas/IngresoEquipo.tsx';
+import { Importar } from './paginas/Importar.tsx';
 import { Proyecto, Proyectos } from './paginas/Proyectos.tsx';
 import { Bodega, Bodegas } from './paginas/Bodegas.tsx';
 import { Articulo, Articulos, IngresoArticulos } from './paginas/Articulos.tsx';
@@ -41,6 +42,7 @@ function Rutas() {
         <Route path="/" element={<Inicio />} />
         <Route path="/inventario" element={<Inventario />} />
         <Route path="/equipos/nuevo" element={<IngresoEquipo />} />
+        <Route path="/equipos/importar" element={<Importar />} />
         <Route path="/equipos/:id" element={<Equipo />} />
         <Route path="/proyectos" element={<Proyectos />} />
         <Route path="/proyectos/:id" element={<Proyecto />} />

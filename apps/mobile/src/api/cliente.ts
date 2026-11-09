@@ -384,6 +384,7 @@ export function sincronizar(): Promise<{ enviados: number; rechazados: number }>
 export const NOMBRE_COMANDO: Record<TipoComando, string> = {
   CREAR_PROYECTO: 'Crear proyecto',
   REGISTRAR_INGRESO: 'Ingreso de equipo',
+  IMPORTAR_HISTORICO: 'Importación del histórico',
   CAMBIAR_PROYECTO: 'Cambio de proyecto',
   INSTALAR_EQUIPO: 'Instalación',
   RETIRAR_EQUIPO: 'Retiro',

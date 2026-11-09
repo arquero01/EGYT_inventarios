@@ -271,7 +271,7 @@ describe('Consultas (RF-10, RF-18 a RF-22)', () => {
     expect(resumen.total).toBe(resumen.enStock + resumen.instalados + resumen.enMantenimiento + resumen.dadosDeBaja);
 
     const stock = (await obtener('/inventario/stock-por-tipo')).json().datos;
-    expect(stock).toHaveLength(5);
+    expect(stock).toHaveLength(6);
     const inversor = stock.find((s: { tipo: string }) => s.tipo === 'INVERSOR');
     expect(inversor.cantidad).toBeGreaterThanOrEqual(1);
   });

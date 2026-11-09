@@ -15,7 +15,7 @@ export const NOMBRE_ROL: Record<Rol, string> = {
 };
 
 /** Operaciones que solo puede hacer un administrador. */
-export const COMANDOS_SOLO_ADMIN: readonly TipoComando[] = ['DAR_DE_BAJA'];
+export const COMANDOS_SOLO_ADMIN: readonly TipoComando[] = ['DAR_DE_BAJA', 'IMPORTAR_HISTORICO'];
 
 export const puedeEjecutar = (rol: Rol, tipo: TipoComando) => rol === 'ADMIN' || !COMANDOS_SOLO_ADMIN.includes(tipo);
 

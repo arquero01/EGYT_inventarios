@@ -2,6 +2,7 @@ import { and, eq, gte, inArray, sql } from 'drizzle-orm';
 import {
   ErrorDominio,
   NOMBRE_TIPO_EQUIPO,
+  PREFIJO_SERIAL,
   UNIDADES_ENTERAS,
   errorConflicto,
   errorNoEncontrado,
@@ -10,6 +11,7 @@ import {
   type Comando,
   type EstadoEquipo,
   type TipoComando,
+  type TipoEquipo,
   type TipoEvento,
   type TipoMovimiento,
 } from '@egt/domain';
@@ -73,7 +75,14 @@ export async function exigirArticulos(
 }
 
 export const nombreEquipo = (e: Pick<FilaEquipo, 'tipo' | 'marca' | 'modelo' | 'serial'>) =>
-  `${NOMBRE_TIPO_EQUIPO[e.tipo]} ${e.marca} ${e.modelo} (serial ${e.serial})`;
+  `${[NOMBRE_TIPO_EQUIPO[e.tipo], e.marca, e.modelo].filter(Boolean).join(' ')} (serial ${e.serial})`;
+
+/** Serial asignado por el sistema: EGT-PAN-000001. */
+export async function asignarSerialEmpresa(tx: Transaccion, tipo: TipoEquipo): Promise<string> {
+  const prefijo = PREFIJO_SERIAL[tipo];
+  const numero = await siguienteConsecutivo(tx, prefijo);
+  return `EGT-${prefijo}-${String(numero).padStart(6, '0')}`;
+}
 
 // ── Historial ──────────────────────────────────────────────────────────────
 

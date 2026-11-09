@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import {
-  ORIGENES_SERIAL,
+  ESTADOS_EQUIPO,
   TIPOS_EQUIPO,
   UNIDADES_CAPACIDAD,
   UNIDADES_MEDIDA,
@@ -90,7 +90,7 @@ export const registrarIngreso = z
     tipo: z.enum(TIPOS_EQUIPO, { error: 'Tipo de equipo no permitido' }),
     marca: texto(80),
     modelo: texto(80),
-    origenSerial: z.enum(ORIGENES_SERIAL, { error: 'Debe ser PROVEEDOR o EMPRESA' }),
+    origenSerial: z.enum(['PROVEEDOR', 'EMPRESA'], { error: 'Debe ser PROVEEDOR o EMPRESA' }),
     /** Obligatorio si el serial viene del proveedor; se omite si lo asigna la empresa. */
     serial: z.string().trim().max(60, 'Máximo 60 caracteres').optional(),
     potencia: z.number({ error: 'Debe ser un número' }).positive('Debe ser mayor a cero'),
@@ -110,6 +110,89 @@ export const registrarIngreso = z
       }
     } else if (d.serial) {
       ctx.addIssue({ code: 'custom', path: ['serial'], message: 'El serial de la empresa lo asigna el sistema; no debe enviarse' });
+    }
+  });
+
+// ── Importación del histórico de la empresa ───────────────────────────────
+
+/** Texto opcional: vacío cuenta como "no viene". */
+const textoOpcional = (max: number) =>
+  z
+    .string()
+    .trim()
+    .max(max, `Máximo ${max} caracteres`)
+    .optional()
+    .transform((v) => (v ? v : undefined));
+
+const fechaOpcional = z.string().refine(esFechaValida, 'Debe ser una fecha válida con formato AAAA-MM-DD').optional();
+const fechaPasadaOpcional = fechaOpcional.refine((f) => !f || !esFechaFutura(f), 'No puede ser una fecha futura');
+
+/**
+ * Un equipo del histórico que la empresa llevaba en hojas de cálculo. A
+ * diferencia del ingreso normal (RF-06/RF-08), casi todo es opcional: lo que
+ * falta se guarda en `pendientes` para completarlo después. El equipo entra
+ * directamente en el estado en que está hoy (casi siempre, instalado).
+ * Solo lo puede usar un administrador.
+ */
+export const importarHistorico = z
+  .object({
+    equipoId: id,
+    /** Código interno de la empresa (EG&T-BGEL-0051): pasa a ser el identificador del equipo. */
+    codigoInterno: textoOpcional(60),
+    serialFabricante: textoOpcional(80),
+    tipo: z.enum(TIPOS_EQUIPO, { error: 'Tipo de equipo no permitido' }),
+    marca: textoOpcional(80),
+    modelo: textoOpcional(80),
+    descripcion: textoOpcional(300),
+    potencia: z.number({ error: 'Debe ser un número' }).positive('Debe ser mayor a cero').optional(),
+    unidad: z.enum(UNIDADES_CAPACIDAD, { error: `Unidad no permitida (${UNIDADES_CAPACIDAD.join(', ')})` }).optional(),
+    /** Zona o centro de costos (San Miguel, Puerto Asís…). Una zona puede tener varios proyectos. */
+    zona: textoOpcional(120),
+    proyectoId: id.optional(),
+    bodegaId: id.optional(),
+    compra: z
+      .object({
+        proveedor: textoOpcional(150),
+        nit: z
+          .string()
+          .trim()
+          .optional()
+          .refine((v) => !v || normalizarNit(v) !== null, 'NIT inválido (solo dígitos; si incluye dígito de verificación, debe ser correcto)')
+          .transform((v) => (v ? v : undefined)),
+        numeroFactura: z
+          .string()
+          .trim()
+          .regex(/^[A-Za-z0-9][A-Za-z0-9 ./-]{0,29}$/, 'Número de factura inválido (máximo 30 caracteres)')
+          .optional(),
+        fechaCompra: fechaPasadaOpcional,
+      })
+      .optional(),
+    valorPagado: z.number({ error: 'Debe ser un número' }).positive('Debe ser mayor a cero').optional(),
+    garantiaHasta: fechaOpcional,
+    estado: z.enum(ESTADOS_EQUIPO, { error: 'Estado no permitido' }),
+    usuario: z
+      .object({
+        cedula: digitos(5, 12, 'La cédula'),
+        nombre: textoOpcional(150),
+        niu: textoOpcional(30),
+      })
+      .optional(),
+    /** Fecha en que se entregó al usuario (queda como fecha de instalación). */
+    fechaEntrega: fechaPasadaOpcional,
+    /** Estado y observaciones tal como venían en el archivo. */
+    motivo: textoOpcional(500),
+    /** Datos que faltaban en el archivo ("Proyecto", "NIT del proveedor"…). */
+    pendientes: z.array(z.string().trim().min(1).max(60)).max(20).default([]),
+  })
+  .superRefine((d, ctx) => {
+    if (d.estado === 'EN_STOCK' && !d.bodegaId) {
+      ctx.addIssue({ code: 'custom', path: ['bodegaId'], message: 'Un equipo en stock debe quedar en una bodega' });
+    }
+    if (d.potencia !== undefined && !d.unidad) {
+      ctx.addIssue({ code: 'custom', path: ['unidad'], message: 'Indique la unidad de la potencia' });
+    }
+    if (d.codigoInterno && normalizarSerial(d.codigoInterno).startsWith('EGT-')) {
+      ctx.addIssue({ code: 'custom', path: ['codigoInterno'], message: 'El prefijo EGT- está reservado para seriales asignados por el sistema' });
     }
   });
 
@@ -257,6 +340,7 @@ export const registrarDevolucion = z
 export const DEFINICION_COMANDOS = {
   CREAR_PROYECTO: { schema: crearProyecto, codigo: 'RF-01' },
   REGISTRAR_INGRESO: { schema: registrarIngreso, codigo: 'RF-06' },
+  IMPORTAR_HISTORICO: { schema: importarHistorico, codigo: 'IMP-01' },
   CAMBIAR_PROYECTO: { schema: cambiarProyecto, codigo: 'RF-03' },
   INSTALAR_EQUIPO: { schema: instalarEquipo, codigo: 'RF-11' },
   RETIRAR_EQUIPO: { schema: retirarEquipo, codigo: 'RF-13' },

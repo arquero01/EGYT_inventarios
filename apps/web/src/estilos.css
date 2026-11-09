@@ -586,9 +586,9 @@ textarea {
 }
 
 .aviso.exito {
-  border-color: var(--azul);
-  background: var(--azul-suave);
-  color: var(--azul-oscuro);
+  border-color: var(--exito);
+  background: var(--exito-suave);
+  color: var(--exito);
 }
 
 .aviso.atencion {
@@ -742,9 +742,13 @@ textarea {
 
 .filtros {
   display: grid;
-  grid-template-columns: minmax(220px, 2fr) repeat(4, minmax(140px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
   gap: 12px;
   margin-bottom: 16px;
+}
+
+.filtros .buscador {
+  grid-column: span 2;
 }
 
 .buscador {
@@ -1418,4 +1422,202 @@ textarea {
   overflow: hidden;
   clip: rect(0 0 0 0);
   white-space: nowrap;
+}
+
+/* ── Importar equipos ──────────────────────────────────────────────────── */
+
+.pasos-importar {
+  list-style: none;
+  counter-reset: paso;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 20px;
+  margin: 0;
+  padding: 0;
+}
+
+.pasos-importar > li {
+  counter-increment: paso;
+  display: grid;
+  gap: 12px;
+  align-content: start;
+  padding: 22px;
+  background: var(--superficie);
+  border: 1px solid var(--linea);
+  border-radius: var(--radio);
+}
+
+.pasos-importar h2 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: var(--t-l);
+}
+
+/* Los pasos sí son una secuencia: el número dice el orden. */
+.pasos-importar h2::before {
+  content: counter(paso);
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--noche);
+  color: #fff;
+  font-size: var(--t-s);
+  font-stretch: 100%;
+}
+
+.pasos-importar p {
+  margin: 0;
+  color: var(--tinta-suave);
+  max-width: 60ch;
+}
+
+.pasos-importar .boton {
+  justify-self: start;
+}
+
+.zona-archivo {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 18px;
+  border: 2px dashed var(--linea);
+  border-radius: var(--radio);
+  background: var(--papel);
+  color: var(--azul);
+  cursor: pointer;
+}
+
+.zona-archivo:hover,
+.zona-archivo.arrastrando {
+  border-color: var(--azul);
+  background: var(--azul-suave);
+}
+
+.zona-archivo:focus-within {
+  outline: 3px solid var(--logo-1);
+  outline-offset: 2px;
+}
+
+.zona-archivo input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.zona-archivo span {
+  display: grid;
+  color: var(--tinta);
+  overflow-wrap: anywhere;
+}
+
+.resumen-importar {
+  display: grid;
+  gap: 12px;
+}
+
+.resumen-importar > p {
+  margin: 0;
+  font-size: var(--t-l);
+}
+
+.progreso {
+  height: 10px;
+  border-radius: 5px;
+  background: var(--linea-suave);
+  overflow: hidden;
+}
+
+.progreso span {
+  display: block;
+  height: 100%;
+  background: var(--logo-1);
+  transition: width 0.2s ease;
+}
+
+.estado-fila ul {
+  margin: 0;
+  padding-left: 16px;
+  color: var(--peligro);
+  font-size: var(--t-xs);
+}
+
+.interruptor {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--t-s);
+  cursor: pointer;
+}
+
+.interruptor input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--azul);
+}
+
+/* ── Importación del inventario de la empresa ─────────────────────────── */
+.fila-campos {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 16px;
+}
+
+.resumen-historico {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 10px;
+}
+
+.resumen-historico .cifra {
+  display: grid;
+  gap: 6px;
+  align-content: start;
+  padding: 12px 14px;
+  border: 1px solid var(--linea);
+  border-radius: 10px;
+  background: var(--superficie);
+  font-size: var(--t-s);
+}
+
+.resumen-historico .cifra b {
+  font-size: 1.6rem;
+  line-height: 1;
+}
+
+.resumen-historico .cifra.peligro b {
+  color: var(--peligro);
+}
+
+.zonas-historico {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border: 1px solid var(--linea);
+  border-radius: 999px;
+  font-size: var(--t-s);
+  background: var(--superficie);
+}
+
+.pendiente-dato {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: var(--t-xs);
+  font-weight: 600;
+  color: #7a4b00;
+  background: #fff1d6;
+  border: 1px solid #f0d199;
 }

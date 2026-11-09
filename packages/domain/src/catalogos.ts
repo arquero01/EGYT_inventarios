@@ -9,6 +9,7 @@ export const TIPOS_EQUIPO = [
   'BATERIA_LITIO',
   'INVERSOR',
   'MEDIDOR',
+  'CONTROLADOR',
 ] as const;
 export type TipoEquipo = (typeof TIPOS_EQUIPO)[number];
 
@@ -18,6 +19,7 @@ export const NOMBRE_TIPO_EQUIPO: Record<TipoEquipo, string> = {
   BATERIA_LITIO: 'Batería de litio',
   INVERSOR: 'Inversor',
   MEDIDOR: 'Medidor',
+  CONTROLADOR: 'Controlador de carga',
 };
 
 /** Prefijo usado en los seriales que asigna la empresa (EGT-PAN-000001). */
@@ -27,6 +29,7 @@ export const PREFIJO_SERIAL: Record<TipoEquipo, string> = {
   BATERIA_LITIO: 'BLI',
   INVERSOR: 'INV',
   MEDIDOR: 'MED',
+  CONTROLADOR: 'CTR',
 };
 
 /** RF-09: un equipo está en uno y solo uno de estos cuatro estados. */
@@ -50,10 +53,11 @@ export const UNIDADES_CAPACIDAD = ['W', 'kW', 'Wh', 'kWh', 'Ah', 'A', 'V'] as co
 export type UnidadCapacidad = (typeof UNIDADES_CAPACIDAD)[number];
 
 /**
- * Origen del serial: lo trae el fabricante/proveedor, o lo asigna la empresa
- * porque el equipo llegó sin serial.
+ * Origen del serial: lo trae el fabricante/proveedor, lo asigna el sistema
+ * porque el equipo llegó sin serial (EGT-…), o es el código interno que la
+ * empresa ya usaba en sus hojas de cálculo (EG&T-BGEL-0051), importado.
  */
-export const ORIGENES_SERIAL = ['PROVEEDOR', 'EMPRESA'] as const;
+export const ORIGENES_SERIAL = ['PROVEEDOR', 'EMPRESA', 'INTERNO'] as const;
 export type OrigenSerial = (typeof ORIGENES_SERIAL)[number];
 
 /** RF-17: tipos de evento del historial. */
@@ -68,6 +72,7 @@ export const TIPOS_EVENTO = [
   'DESPACHO',
   'TRASLADO',
   'DEVOLUCION',
+  'IMPORTACION',
 ] as const;
 export type TipoEvento = (typeof TIPOS_EVENTO)[number];
 

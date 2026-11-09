@@ -13,6 +13,7 @@ const UNIDAD_SUGERIDA: Record<TipoEquipo, UnidadCapacidad> = {
   BATERIA_LITIO: 'kWh',
   INVERSOR: 'W',
   MEDIDOR: 'A',
+  CONTROLADOR: 'A',
 };
 
 /** RF-06 (equipo), RF-07 (serial único), RF-08 (compra) y RL-02 (bodega de llegada). */
@@ -74,7 +75,15 @@ export function IngresoEquipo() {
 
   const visibles = ['tipo', 'marca', 'modelo', 'origenSerial', 'serial', 'potencia', 'unidad', 'proyectoId', 'bodegaId', 'compra', 'valorPagado'];
   return (
-    <Pagina titulo="Ingreso de equipo" descripcion="Registre cada unidad que llega del proveedor. Queda en la bodega elegida y asignada al proyecto." volver={{ a: '/inventario', texto: 'Equipos' }}>
+    <Pagina
+      titulo="Ingreso de equipo"
+      descripcion={
+        <>
+          Registre cada unidad que llega del proveedor. Queda en la bodega elegida y asignada al proyecto. ¿Son muchos? <Link to="/equipos/importar">Impórtelos desde Excel</Link>.
+        </>
+      }
+      volver={{ a: '/inventario', texto: 'Equipos' }}
+    >
       <form className="formulario" onSubmit={guardar} noValidate style={{ maxWidth: 860 }}>
         {bodegas.datos?.datos.length === 0 ? (
           <Aviso tipo="atencion">

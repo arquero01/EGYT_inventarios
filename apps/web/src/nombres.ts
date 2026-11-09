@@ -3,6 +3,7 @@ import type { Accion, TipoComando } from '@egt/domain';
 export const NOMBRE_COMANDO_WEB: Record<TipoComando, string> = {
   CREAR_PROYECTO: 'Crear proyecto',
   REGISTRAR_INGRESO: 'Ingreso de equipo',
+  IMPORTAR_HISTORICO: 'Importación del histórico',
   CAMBIAR_PROYECTO: 'Cambio de proyecto',
   INSTALAR_EQUIPO: 'Instalación',
   RETIRAR_EQUIPO: 'Retiro',

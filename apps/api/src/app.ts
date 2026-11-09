@@ -16,7 +16,7 @@ import {
 } from '@egt/domain';
 import type { BaseDatos } from './db/cliente.ts';
 import { ejecutarComando, traducirError } from './comandos/ejecutor.ts';
-import { hojaDeVida, listarEquipos } from './consultas/equipos.ts';
+import { ESTADOS_GARANTIA, hojaDeVida, listarEquipos, listarZonas } from './consultas/equipos.ts';
 import { resumenInventario, stockPorTipo } from './consultas/inventario.ts';
 import {
   detalleBodega,
@@ -81,6 +81,10 @@ const filtrosEquipos = z.object({
   proyectoId: z.uuid({ error: 'Debe ser un UUID válido' }).optional(),
   ubicacion: z.enum(UBICACIONES, { error: 'Debe ser BODEGA o CAMPO' }).optional(),
   bodegaId: z.uuid({ error: 'Debe ser un UUID válido' }).optional(),
+  zona: z.string().trim().max(120).optional(),
+  garantia: z.enum(ESTADOS_GARANTIA, { error: `Debe ser ${ESTADOS_GARANTIA.join(', ')}` }).optional(),
+  pendientes: z.enum(['si', 'no']).optional().transform((v) => v === 'si'),
+  sinProyecto: z.enum(['si', 'no']).optional().transform((v) => v === 'si'),
   q: z.string().optional(),
   pagina: z.coerce.number().int().min(1).default(1),
   porPagina: z.coerce.number().int().min(1).max(100).default(20),
@@ -210,6 +214,8 @@ export function construirApp(db: BaseDatos, opciones: OpcionesApp = {}): Fastify
       const codigo: CodigoMensaje = 'estado' in query && !ESTADOS_EQUIPO.includes(query.estado as never) ? 'RF-09' : 'RF-23';
       return listarEquipos(db, leer(filtrosEquipos, query, codigo));
     });
+
+    app.get('/zonas', async () => listarZonas(db));
 
     /** RF-16: acepta el id (UUID) o el serial. */
     app.get('/equipos/:idOSerial', async (req) => {

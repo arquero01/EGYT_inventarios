@@ -17,6 +17,8 @@ const ACCION: Record<Accion, { texto: string; icono: NombreIcono; variante: 'pri
 };
 
 /** RF-16 (hoja de vida) y RF-17 (historial), con las acciones que permite su estado. */
+const POR_COMPLETAR = 'Por completar';
+
 export function HojaDeVida({ route, navigation }: PropsPila<'HojaDeVida'>) {
   const { datos, cargando, error, desactualizado, guardadoEn, recargar } = useLectura<Hoja>(`/equipos/${route.params.equipoId}`);
   const sesion = useSesion();
@@ -34,16 +36,24 @@ export function HojaDeVida({ route, navigation }: PropsPila<'HojaDeVida'>) {
       <Titulo>{e.serial}</Titulo>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: espacio.s, marginBottom: espacio.l }}>
         <InsigniaEstado estado={e.estado} />
-        <TextoSuave>{e.origenSerial === 'EMPRESA' ? 'Serial asignado por la empresa' : 'Serial del proveedor'}</TextoSuave>
+        <TextoSuave>
+          {e.origenSerial === 'EMPRESA' ? 'Serial asignado por la empresa' : e.origenSerial === 'INTERNO' ? 'Código interno de la empresa' : 'Serial del proveedor'}
+        </TextoSuave>
       </View>
+
+      {e.pendientes && e.pendientes.length > 0 ? <Aviso>Por completar: {e.pendientes.join(', ')}.</Aviso> : null}
 
       <Tarjeta>
         <FilaDato etiqueta="Tipo" valor={e.tipoNombre} />
-        <FilaDato etiqueta="Marca y modelo" valor={`${e.marca} ${e.modelo}`} />
-        <FilaDato etiqueta="Potencia o capacidad" valor={`${cantidad(e.potencia)} ${e.unidad}`} />
-        <FilaDato etiqueta="Proyecto" valor={proyecto.nombre} />
-        <FilaDato etiqueta="Ubicación" valor={e.ubicacion === 'BODEGA' ? e.bodega?.nombre ?? 'Bodega' : `En campo (${proyecto.vereda})`} />
+        <FilaDato etiqueta="Marca y modelo" valor={[e.marca, e.modelo].filter(Boolean).join(' ') || POR_COMPLETAR} />
+        {e.descripcion ? <FilaDato etiqueta="Descripción" valor={e.descripcion} /> : null}
+        {e.serialFabricante ? <FilaDato etiqueta="Serial del fabricante" valor={e.serialFabricante} /> : null}
+        <FilaDato etiqueta="Potencia o capacidad" valor={e.potencia != null ? `${cantidad(e.potencia)} ${e.unidad ?? ''}` : POR_COMPLETAR} />
+        <FilaDato etiqueta="Proyecto" valor={proyecto?.nombre ?? POR_COMPLETAR} />
+        {e.zona ? <FilaDato etiqueta="Zona" valor={e.zona} /> : null}
+        <FilaDato etiqueta="Ubicación" valor={e.ubicacion === 'BODEGA' ? e.bodega?.nombre ?? 'Bodega' : proyecto ? `En campo (${proyecto.vereda})` : 'En campo'} />
         <FilaDato etiqueta="Ingreso" valor={fecha(e.fechaIngreso)} />
+        {e.garantiaHasta ? <FilaDato etiqueta="Garantía hasta" valor={fecha(e.garantiaHasta)} /> : null}
       </Tarjeta>
 
       {datos.instalacionActual ? (
@@ -57,7 +67,7 @@ export function HojaDeVida({ route, navigation }: PropsPila<'HojaDeVida'>) {
           {acciones.map((a) => (
             <Boton
               key={a}
-              texto={ACCION[a].texto}
+              texto={a === 'CAMBIAR_PROYECTO' && !proyecto ? 'Asignar proyecto' : ACCION[a].texto}
               icono={ACCION[a].icono}
               variante={ACCION[a].variante}
               alTocar={() =>
@@ -65,8 +75,8 @@ export function HojaDeVida({ route, navigation }: PropsPila<'HojaDeVida'>) {
                   equipoId: e.id,
                   serial: e.serial,
                   accion: a,
-                  proyectoId: proyecto.id,
-                  ubicacion: { vereda: proyecto.vereda, municipio: proyecto.municipio, departamento: proyecto.departamento },
+                  proyectoId: proyecto?.id ?? '',
+                  ubicacion: { vereda: proyecto?.vereda ?? '', municipio: proyecto?.municipio ?? e.zona ?? '', departamento: proyecto?.departamento ?? '' },
                 })
               }
             />
@@ -82,7 +92,7 @@ export function HojaDeVida({ route, navigation }: PropsPila<'HojaDeVida'>) {
                   tipo: m,
                   equipoId: e.id,
                   ...(e.bodega ? { bodegaId: e.bodega.id } : {}),
-                  ...(m === 'DEVOLUCION' ? { proyectoId: proyecto.id } : {}),
+                  ...(m === 'DEVOLUCION' && proyecto ? { proyectoId: proyecto.id } : {}),
                 })
               }
             />
@@ -94,11 +104,11 @@ export function HojaDeVida({ route, navigation }: PropsPila<'HojaDeVida'>) {
 
       <Seccion titulo="Compra">
         <Tarjeta>
-          <FilaDato etiqueta="Proveedor" valor={compra.proveedor} />
-          <FilaDato etiqueta="NIT" valor={compra.nit} />
-          <FilaDato etiqueta="Factura" valor={compra.numeroFactura} />
-          <FilaDato etiqueta="Fecha de compra" valor={fecha(compra.fechaCompra)} />
-          <FilaDato etiqueta="Valor pagado" valor={pesos(compra.valorPagado)} />
+          <FilaDato etiqueta="Proveedor" valor={compra?.proveedor ?? POR_COMPLETAR} />
+          <FilaDato etiqueta="NIT" valor={compra?.nit ?? POR_COMPLETAR} />
+          <FilaDato etiqueta="Factura" valor={compra?.numeroFactura ?? POR_COMPLETAR} />
+          <FilaDato etiqueta="Fecha de compra" valor={compra?.fechaCompra ? fecha(compra.fechaCompra) : POR_COMPLETAR} />
+          <FilaDato etiqueta="Valor pagado" valor={(compra?.valorPagado ?? datos.valorPagado) != null ? pesos((compra?.valorPagado ?? datos.valorPagado)!) : POR_COMPLETAR} />
         </Tarjeta>
       </Seccion>
 
@@ -133,10 +143,14 @@ function TarjetaInstalacion({ instalacion: i }: { instalacion: Instalacion }) {
     <Tarjeta>
       <FilaDato etiqueta="Usuario final" valor={i.usuarioFinal.nombre} />
       <FilaDato etiqueta="Cédula" valor={i.usuarioFinal.cedula} />
-      <FilaDato etiqueta="Teléfono" valor={i.usuarioFinal.telefono} />
-      <FilaDato etiqueta="Ubicación" valor={`${i.ubicacion.vereda}, ${i.ubicacion.municipio} (${i.ubicacion.departamento})`} />
+      {i.usuarioFinal.niu ? <FilaDato etiqueta="NIU" valor={i.usuarioFinal.niu} /> : null}
+      <FilaDato etiqueta="Teléfono" valor={i.usuarioFinal.telefono ?? POR_COMPLETAR} />
+      <FilaDato
+        etiqueta="Ubicación"
+        valor={[i.ubicacion.vereda, i.ubicacion.municipio].filter(Boolean).join(', ') + (i.ubicacion.departamento ? ` (${i.ubicacion.departamento})` : '') || '—'}
+      />
       <FilaDato etiqueta="Fecha" valor={fecha(i.fechaInstalacion)} />
-      <FilaDato etiqueta="Técnico" valor={i.tecnico} />
+      <FilaDato etiqueta="Técnico" valor={i.tecnico ?? '—'} />
       {!i.vigente ? <FilaDato etiqueta="Finalizada" valor={`${fechaHora(i.finalizadaEn)}${i.motivoFin ? ` · ${i.motivoFin}` : ''}`} /> : null}
     </Tarjeta>
   );
