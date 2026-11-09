@@ -4,11 +4,8 @@ import { Alert, Text, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { NOMBRE_ROL } from '@egt/domain';
 import {
   NOMBRE_COMANDO,
-  cambiarContrasena,
-  cerrarSesionCuenta,
   descartarRechazado,
   guardarAjustes,
   leerAjustes,
@@ -22,59 +19,15 @@ import {
   type Sobre,
 } from '../api/cliente.ts';
 import type { Pila } from '../navegacion.tsx';
-import { Aviso, Boton, Campo, FilaDato, Insignia, Pantalla, Seccion, Tarjeta, TextoSuave, Vacio } from '../ui/componentes.tsx';
-import { useSesion } from '../ui/ganchos.ts';
+import { Aviso, Boton, Campo, FilaDato, Pantalla, Seccion, Tarjeta, TextoSuave, Vacio } from '../ui/componentes.tsx';
 import { fechaHora } from '../ui/formato.ts';
 import { color, espacio } from '../ui/tema.ts';
 
-/** Cambio de contraseña: pide la actual y la nueva dos veces. */
-function CambioContrasena({ alTerminar }: { alTerminar: () => void }) {
-  const [actual, setActual] = useState('');
-  const [nueva, setNueva] = useState('');
-  const [repetida, setRepetida] = useState('');
-  const [errores, setErrores] = useState<Record<string, string>>({});
-  const [mensaje, setMensaje] = useState<string | null>(null);
-  const [enviando, setEnviando] = useState(false);
-
-  const guardar = async () => {
-    setErrores({});
-    setMensaje(null);
-    if (nueva !== repetida) return setErrores({ repetida: 'Las contraseñas no coinciden' });
-    setEnviando(true);
-    try {
-      await cambiarContrasena(actual, nueva);
-      Alert.alert('Contraseña cambiada', 'Las demás sesiones abiertas con su cuenta se cerraron.');
-      alTerminar();
-    } catch (e) {
-      if (e instanceof FalloApi) {
-        const porCampo: Record<string, string> = {};
-        for (const d of e.error.detalles) porCampo[d.campo] ??= d.problema;
-        setErrores(porCampo);
-        setMensaje(e.error.tipo === 'SIN_CONEXION' ? 'Necesita conexión para cambiar la contraseña.' : e.error.mensaje);
-      } else setMensaje(String(e));
-    } finally {
-      setEnviando(false);
-    }
-  };
-
-  return (
-    <Tarjeta>
-      <Campo etiqueta="Contraseña actual" valor={actual} alCambiar={setActual} secreto mayusculas="none" autocompletar="current-password" error={errores.actual} />
-      <Campo etiqueta="Contraseña nueva" valor={nueva} alCambiar={setNueva} secreto mayusculas="none" autocompletar="new-password" error={errores.nueva} ayuda="Mínimo 8 caracteres, con letras y números." />
-      <Campo etiqueta="Repita la contraseña nueva" valor={repetida} alCambiar={setRepetida} secreto mayusculas="none" autocompletar="new-password" error={errores.repetida} />
-      {mensaje ? <Aviso tipo="error">{mensaje}</Aviso> : null}
-      <Boton texto="Guardar contraseña" cargando={enviando} alTocar={guardar} />
-      <Boton texto="Cancelar" variante="secundario" alTocar={alTerminar} />
-    </Tarjeta>
-  );
-}
-
-/** Cuenta, servidor y operaciones pendientes (RNF-01). */
+/** Servidor, nombre de quien usa la app y operaciones pendientes (RNF-01). */
 export function Ajustes() {
   const navegar = useNavigation<NativeStackNavigationProp<Pila>>();
-  const sesion = useSesion();
-  const [cambiandoClave, setCambiandoClave] = useState(false);
   const [servidor, setServidor] = useState('');
+  const [autor, setAutor] = useState('');
   const [dispositivo, setDispositivo] = useState('');
   const [prueba, setPrueba] = useState<{ ok: boolean; texto: string } | null>(null);
   const [probando, setProbando] = useState(false);
@@ -91,6 +44,7 @@ export function Ajustes() {
     useCallback(() => {
       leerAjustes().then((a) => {
         setServidor(a.servidor);
+        setAutor(a.autor);
         setDispositivo(a.dispositivoId);
       });
       cargarCola();
@@ -101,7 +55,7 @@ export function Ajustes() {
   const guardarYProbar = async () => {
     setProbando(true);
     setPrueba(null);
-    const a = await guardarAjustes({ servidor });
+    const a = await guardarAjustes({ servidor, autor: autor.trim() });
     setServidor(a.servidor);
     try {
       await probarServidor();
@@ -126,37 +80,8 @@ export function Ajustes() {
     }
   };
 
-  const salir = () => {
-    const aviso =
-      cola.length > 0
-        ? `Hay ${cola.length} operación(es) sin enviar. Se conservan en el celular y se enviarán cuando alguien vuelva a entrar.`
-        : '¿Desea cerrar la sesión en este celular?';
-    Alert.alert('Cerrar sesión', aviso, [
-      { text: 'Cancelar', style: 'cancel' },
-      { text: 'Cerrar sesión', style: 'destructive', onPress: () => void cerrarSesionCuenta() },
-    ]);
-  };
-
   return (
     <Pantalla>
-      {sesion ? (
-        <Seccion titulo="Mi cuenta">
-          <Tarjeta>
-            <Text style={{ fontSize: 17, fontWeight: '700', color: color.texto }}>{sesion.usuario.nombre}</Text>
-            <TextoSuave>{sesion.usuario.correo}</TextoSuave>
-            <View style={{ flexDirection: 'row', marginTop: espacio.s }}>
-              <Insignia texto={NOMBRE_ROL[sesion.usuario.rol]} />
-            </View>
-          </Tarjeta>
-          {cambiandoClave ? (
-            <CambioContrasena alTerminar={() => setCambiandoClave(false)} />
-          ) : (
-            <Boton texto="Cambiar contraseña" icono="key-outline" variante="secundario" alTocar={() => setCambiandoClave(true)} />
-          )}
-          <Boton texto="Cerrar sesión" icono="log-out-outline" variante="peligro" alTocar={salir} />
-        </Seccion>
-      ) : null}
-
       <Seccion titulo="Servidor">
         <Campo
           etiqueta="Dirección del servidor"
@@ -167,6 +92,7 @@ export function Ajustes() {
           marcador="https://mi-codespace-3000.app.github.dev"
           ayuda="La dirección pública de la API (en Codespaces, el puerto 3000 marcado como público)."
         />
+        <Campo etiqueta="Su nombre" valor={autor} alCambiar={setAutor} mayusculas="words" ayuda="Queda registrado en cada operación y se sugiere como técnico o responsable." />
         {prueba ? <Aviso tipo={prueba.ok ? 'exito' : 'error'}>{prueba.texto}</Aviso> : null}
         <Boton texto="Guardar y probar conexión" icono="wifi-outline" cargando={probando} alTocar={guardarYProbar} />
       </Seccion>

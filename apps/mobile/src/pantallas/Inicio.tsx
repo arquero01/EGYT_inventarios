@@ -56,7 +56,7 @@ export function Inicio() {
       ) : null}
 
       {cola.pendientes > 0 ? (
-        <Tarjeta estilo={{ backgroundColor: color.avisoSuave, borderColor: color.atencion }}>
+        <Tarjeta estilo={{ backgroundColor: color.avisoSuave, borderColor: color.acento }}>
           <Text style={{ fontWeight: '700', color: color.aviso }}>
             {cola.pendientes} {cola.pendientes === 1 ? 'operación pendiente' : 'operaciones pendientes'} de enviar
           </Text>
@@ -83,9 +83,9 @@ export function Inicio() {
             <View style={estilos.cuadricula}>
               <Cifra titulo="Total" valor={r.total} />
               <Cifra titulo="En stock" valor={r.enStock} tinta={color.info} />
-              <Cifra titulo="Instalados" valor={r.instalados} tinta={color.exito} />
+              <Cifra titulo="Instalados" valor={r.instalados} tinta={color.primario} />
               <Cifra titulo="Mantenimiento" valor={r.enMantenimiento} tinta={color.aviso} />
-              <Cifra titulo="Dados de baja" valor={r.dadosDeBaja} tinta="#4F5D6B" />
+              <Cifra titulo="Dados de baja" valor={r.dadosDeBaja} tinta="#4A524E" />
               <Cifra titulo="En bodega / campo" valor={`${r.enBodega} / ${r.enCampo}`} />
             </View>
             {r.total === 0 ? <Aviso>No hay equipos registrados en el sistema actualmente.</Aviso> : null}

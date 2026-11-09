@@ -6,18 +6,13 @@ import { conectar, type Conexion } from '../../api/src/db/cliente.ts';
 import { migrar } from '../../api/src/db/migrar.ts';
 import {
   FalloApi,
-  cerrarSesionCuenta,
   enviarComando,
   guardarAjustes,
-  ingresarCuenta,
   leer,
   leerCola,
   leerRechazados,
-  leerSesion,
   probarServidor,
-  registrarCuenta,
   sincronizar,
-  suscribirSesion,
 } from '../src/api/cliente.ts';
 
 /**
@@ -51,39 +46,8 @@ const proyecto = () => ({
 beforeAll(async () => {
   conexion = await conectar('pglite:memoria');
   await migrar(conexion);
+  await guardarAjustes({ autor: 'Técnico de prueba' });
   await encender();
-});
-
-const CUENTA = { nombre: 'Técnico de Prueba', correo: 'tecnico@egt.co', contrasena: 'campo2026' };
-
-describe('cuenta en la app', () => {
-  it('sin sesión el servidor no responde datos', async () => {
-    await expect(leer('/bodegas')).rejects.toMatchObject({ error: { tipo: 'NO_AUTENTICADO', codigo: 'AUTH-05' } });
-  });
-
-  it('valida el registro en el celular antes de enviarlo', async () => {
-    await expect(registrarCuenta({ nombre: 'Te', correo: 'x', contrasena: '123' })).rejects.toMatchObject({
-      error: { codigo: 'AUTH-11', tipo: 'VALIDACION' },
-    });
-  });
-
-  it('se registra, queda con sesión y la conserva al cerrar y abrir la app', async () => {
-    const cambios: unknown[] = [];
-    const quitar = suscribirSesion((s) => cambios.push(s?.usuario.correo ?? null));
-    expect(await registrarCuenta(CUENTA)).toEqual({ pendiente: false });
-    quitar();
-    expect(cambios).toEqual(['tecnico@egt.co']);
-    const sesion = await leerSesion();
-    expect(sesion?.usuario).toMatchObject({ nombre: 'Técnico de Prueba', rol: 'ADMIN' });
-  });
-
-  it('cierra sesión y vuelve a entrar con correo y contraseña', async () => {
-    await cerrarSesionCuenta();
-    expect(await leerSesion()).toBeNull();
-    await expect(ingresarCuenta({ correo: CUENTA.correo, contrasena: 'otra-clave1' })).rejects.toMatchObject({ error: { codigo: 'AUTH-01' } });
-    const s = await ingresarCuenta({ correo: 'TECNICO@egt.co', contrasena: CUENTA.contrasena });
-    expect(s.usuario.correo).toBe('tecnico@egt.co');
-  });
 });
 
 afterAll(async () => {
@@ -184,19 +148,5 @@ describe('cliente de la app', () => {
 
   it('sincronizar con la cola vacía no hace nada', async () => {
     expect(await sincronizar()).toEqual({ enviados: 0, rechazados: 0 });
-  });
-
-  it('si la sesión vence, vuelve al ingreso y conserva la cola para después', async () => {
-    await apagar();
-    expect((await enviarComando('CREAR_PROYECTO', proyecto())).estado).toBe('EN_COLA');
-    await encender();
-    // El servidor ya no reconoce el token (p. ej. un administrador cerró las sesiones).
-    await conexion.ejecutarScript('DELETE FROM sesiones');
-    await expect(sincronizar()).rejects.toMatchObject({ error: { tipo: 'NO_AUTENTICADO' } });
-    expect(await leerSesion()).toBeNull();
-    expect(await leerCola()).toHaveLength(1);
-
-    await ingresarCuenta({ correo: CUENTA.correo, contrasena: CUENTA.contrasena });
-    expect(await sincronizar()).toEqual({ enviados: 1, rechazados: 0 });
   });
 });

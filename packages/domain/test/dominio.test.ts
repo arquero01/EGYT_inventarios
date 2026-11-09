@@ -1,9 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
   accionesPermitidas,
-  cambioUsuario,
-  puedeEjecutar,
-  registro,
   crearArticulo,
   crearBodega,
   crearProyecto,
@@ -355,26 +352,5 @@ describe('mensajes de identificadores', () => {
     if (!r.success) expect(r.error.issues[0]?.message).toBe('Es obligatorio');
     const mal = crearBodega.safeParse({ bodegaId: 'abc', nombre: 'B', municipio: 'M', departamento: 'D' });
     if (!mal.success) expect(mal.error.issues[0]?.message).toBe('Debe ser un identificador UUID válido');
-  });
-});
-
-describe('Cuentas de usuario', () => {
-  it('normaliza el correo y exige contraseña con letras y números', () => {
-    const r = registro.safeParse({ nombre: ' Ana Gómez ', correo: ' ANA@Egt.CO ', contrasena: 'solar2026' });
-    expect(r.success && r.data).toEqual({ nombre: 'Ana Gómez', correo: 'ana@egt.co', contrasena: 'solar2026' });
-    expect(registro.safeParse({ nombre: 'Ana Gómez', correo: 'ana@egt.co', contrasena: '12345678' }).success).toBe(false);
-    expect(registro.safeParse({ nombre: 'Ana Gómez', correo: 'ana', contrasena: 'solar2026' }).success).toBe(false);
-  });
-
-  it('solo el administrador da de baja equipos', () => {
-    expect(puedeEjecutar('USUARIO', 'DAR_DE_BAJA')).toBe(false);
-    expect(puedeEjecutar('USUARIO', 'REGISTRAR_DESPACHO')).toBe(true);
-    expect(puedeEjecutar('ADMIN', 'DAR_DE_BAJA')).toBe(true);
-  });
-
-  it('un cambio de cuenta debe decir qué cambia', () => {
-    expect(cambioUsuario.safeParse({}).success).toBe(false);
-    expect(cambioUsuario.safeParse({ activo: false }).success).toBe(true);
-    expect(cambioUsuario.safeParse({ rol: 'JEFE' }).success).toBe(false);
   });
 });

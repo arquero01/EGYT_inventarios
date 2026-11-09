@@ -2,19 +2,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert } from 'react-native';
 import type { TipoComando } from '@egt/domain';
-import {
-  FalloApi,
-  enviarComando,
-  leer,
-  leerCola,
-  leerRechazados,
-  leerSesion,
-  suscribirCola,
-  suscribirSesion,
-  type Lectura,
-  type ResultadoEnvio,
-  type Sesion,
-} from '../api/cliente.ts';
+import { FalloApi, enviarComando, leer, leerCola, leerRechazados, suscribirCola, type Lectura, type ResultadoEnvio } from '../api/cliente.ts';
 
 /**
  * Carga una ruta GET y la vuelve a cargar cada vez que la pantalla aparece.
@@ -111,16 +99,6 @@ export function useFormulario() {
       .map(([k, v]) => `${k}: ${v}`);
 
   return { enviar, enviando, errores, errorDe, mensaje, otrosErrores };
-}
-
-/** Cuenta con la que se entró (undefined mientras se lee del almacenamiento). */
-export function useSesion() {
-  const [sesion, setSesion] = useState<Sesion | null | undefined>(undefined);
-  useEffect(() => {
-    leerSesion().then(setSesion);
-    return suscribirSesion(setSesion);
-  }, []);
-  return sesion;
 }
 
 /** Cantidad de operaciones en cola y rechazadas, siempre al día. */

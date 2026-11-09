@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Alert, Text, View } from 'react-native';
 import { NOMBRE_MOVIMIENTO, type TipoComando } from '@egt/domain';
-import { leerSesion } from '../api/cliente.ts';
+import { leerAjustes } from '../api/cliente.ts';
 import type { ArticuloConCantidad, BodegaEnLista, EquipoEnLista, ListaEquipos, ProyectoEnLista } from '../api/tipos.ts';
 import type { PropsPila } from '../navegacion.tsx';
 import { Aviso, Boton, Campo, Cargando, Casilla, InsigniaEstado, Pantalla, Seccion, Selector, Tarjeta, TextoSuave } from '../ui/componentes.tsx';
@@ -34,7 +34,7 @@ export function NuevoMovimiento({ route, navigation }: PropsPila<'NuevoMovimient
 
   useEffect(() => {
     navigation.setOptions({ title: NOMBRE_MOVIMIENTO[tipo] });
-    leerSesion().then((s) => s && setResponsable((r) => r || s.usuario.nombre));
+    leerAjustes().then((a) => a.autor && setResponsable((r) => r || a.autor));
   }, [navigation, tipo]);
 
   // Equipos y artículos disponibles en el lugar de origen.

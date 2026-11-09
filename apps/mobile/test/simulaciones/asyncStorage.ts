@@ -10,8 +10,4 @@ export default {
     datos.delete(clave);
   },
   clear: async () => datos.clear(),
-  getAllKeys: async () => [...datos.keys()],
-  multiRemove: async (claves: string[]) => {
-    for (const c of claves) datos.delete(c);
-  },
 };

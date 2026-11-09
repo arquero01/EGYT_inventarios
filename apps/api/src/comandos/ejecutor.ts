@@ -3,12 +3,10 @@ import {
   ErrorDominio,
   errorConflicto,
   errorValidacion,
-  puedeEjecutar,
   sobreComando,
   validarComando,
   type Comando,
   type TipoComando,
-  type Usuario,
 } from '@egt/domain';
 import type { BaseDatos, Ejecutor } from '../db/cliente.ts';
 import { comandos } from '../db/esquema.ts';
@@ -56,29 +54,17 @@ async function buscarComando(db: Ejecutor, id: string): Promise<FilaComando | un
  *  4. Si una operación hecha sin conexión resulta inválida al llegar (p. ej. dos
  *     técnicos instalaron el mismo equipo), queda RECHAZADA y PENDIENTE de revisión.
  */
-export async function ejecutarComando(
-  db: BaseDatos,
-  entrada: unknown,
-  origen: Origen,
-  usuario: Usuario | null = null,
-): Promise<ResultadoComando> {
+export async function ejecutarComando(db: BaseDatos, entrada: unknown, origen: Origen): Promise<ResultadoComando> {
   const validacion = validarComando(entrada);
-  // El autor lo pone el servidor a partir de la sesión: no se puede firmar a nombre de otro.
-  const firma = usuario ? { autor: usuario.nombre, usuarioId: usuario.id } : { usuarioId: null };
   if (!validacion.valido) {
     const sobre = sobreComando.safeParse(entrada);
     if (origen === 'SINCRONIZACION' && sobre.success) {
-      return guardarRechazo(db, { ...sobre.data, payload: sobre.data.payload ?? {}, ...firma }, validacion.error, origen);
+      return guardarRechazo(db, { ...sobre.data, payload: sobre.data.payload ?? {} }, validacion.error, origen);
     }
     return { id: sobre.success ? sobre.data.id : null, resultado: 'RECHAZADO', duplicado: false, error: validacion.error.toJSON() };
   }
 
-  const comando: Comando = { ...validacion.comando, ...(usuario ? { autor: usuario.nombre } : {}) };
-  if (usuario && !puedeEjecutar(usuario.rol, comando.tipo)) {
-    const error = new ErrorDominio('AUTH-07', 'PROHIBIDO');
-    if (origen === 'SINCRONIZACION') return guardarRechazo(db, { ...comando, ...firma }, error, origen);
-    return { id: comando.id, resultado: 'RECHAZADO', duplicado: false, error: error.toJSON() };
-  }
+  const comando = validacion.comando;
   try {
     return await db.transaction(async (tx) => {
       await tx.execute(sql`SELECT pg_advisory_xact_lock(${LLAVE_ESCRITURA})`);
@@ -93,7 +79,6 @@ export async function ejecutarComando(
         ocurridoEn: new Date(comando.ocurridoEn),
         dispositivoId: comando.dispositivoId ?? null,
         autor: comando.autor ?? null,
-        usuarioId: firma.usuarioId,
         origen,
         resultado: 'APLICADO',
       });
@@ -108,7 +93,7 @@ export async function ejecutarComando(
     const error = traducirError(e);
     // Los fallos técnicos no se guardan: el celular debe reintentar el mismo comando.
     if (!error || error.tipo === 'INTERNO') throw error ?? e;
-    if (origen === 'SINCRONIZACION') return guardarRechazo(db, { ...comando, ...firma }, error, origen);
+    if (origen === 'SINCRONIZACION') return guardarRechazo(db, comando, error, origen);
     return { id: comando.id, resultado: 'RECHAZADO', duplicado: false, error: error.toJSON() };
   }
 }
@@ -119,7 +104,6 @@ interface SobreMinimo {
   ocurridoEn: string;
   dispositivoId?: string | undefined;
   autor?: string | undefined;
-  usuarioId?: string | null;
   payload: unknown;
 }
 
@@ -135,7 +119,6 @@ async function guardarRechazo(db: BaseDatos, c: SobreMinimo, error: ErrorDominio
       ocurridoEn: new Date(c.ocurridoEn),
       dispositivoId: c.dispositivoId ?? null,
       autor: c.autor ?? null,
-      usuarioId: c.usuarioId ?? null,
       origen,
       resultado: 'RECHAZADO',
       error: error.toJSON(),
@@ -178,7 +161,6 @@ export function traducirError(e: unknown): ErrorDominio | null {
       if (restriccion === 'compras_nit_numero_factura_key') return errorConflicto('RF-08-FACTURA');
       if (restriccion === 'instalaciones_una_vigente') return errorConflicto('RF-11');
       if (restriccion === 'usuarios_finales_cedula_key') return errorConflicto('RF-11');
-      if (restriccion === 'usuarios_correo_unico') return errorConflicto('AUTH-02', [{ campo: 'correo', problema: 'Ya existe una cuenta con ese correo' }]);
       if (restriccion === 'bodegas_nombre_unico') return errorConflicto('RL-01', [{ campo: 'payload.nombre', problema: 'Ya existe una bodega con ese nombre' }]);
       if (restriccion === 'articulos_codigo_unico') return errorConflicto('RL-03', [{ campo: 'payload.codigo', problema: 'Ya existe un artículo con ese código' }]);
       if (restriccion.endsWith('_pkey')) return errorConflicto('ID-DUPLICADO', [{ campo: restriccion, problema: 'Identificador repetido' }]);

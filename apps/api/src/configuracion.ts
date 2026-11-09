@@ -10,16 +10,6 @@ const esquemaConfig = z.object({
     .enum(['true', 'false'])
     .default('false')
     .transform((v) => v === 'true'),
-  /**
-   * false (por ahora) → quien se registra entra de una vez.
-   * true → la cuenta queda pendiente hasta que un administrador la autorice.
-   */
-  REGISTRO_REQUIERE_APROBACION: z
-    .enum(['true', 'false'])
-    .default('false')
-    .transform((v) => v === 'true'),
-  /** Carpeta del panel web compilado. Por defecto apps/web/dist si existe. */
-  CARPETA_PANEL: z.string().optional(),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
 });
 
@@ -29,8 +19,6 @@ export interface Configuracion {
   databaseUrl: string;
   migrarAlIniciar: boolean;
   nivelLog: string;
-  registroRequiereAprobacion: boolean;
-  carpetaPanel: string | undefined;
 }
 
 export function cargarConfiguracion(entorno: NodeJS.ProcessEnv = process.env): Configuracion {
@@ -46,7 +34,5 @@ export function cargarConfiguracion(entorno: NodeJS.ProcessEnv = process.env): C
     databaseUrl: c.DATABASE_URL,
     migrarAlIniciar: c.MIGRAR_AL_INICIAR,
     nivelLog: c.LOG_LEVEL,
-    registroRequiereAprobacion: c.REGISTRO_REQUIERE_APROBACION,
-    carpetaPanel: c.CARPETA_PANEL,
   };
 }

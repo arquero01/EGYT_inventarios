@@ -1,4 +1,4 @@
-# Corre todas las pruebas (dominio, API y app) y compila el panel web en cada cambio.
+# Corre todas las pruebas (dominio, API y app) en cada cambio.
 name: Pruebas
 
 on:
@@ -20,4 +20,3 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm -r typecheck
       - run: pnpm -r test
-      - run: pnpm build

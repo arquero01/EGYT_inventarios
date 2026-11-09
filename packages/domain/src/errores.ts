@@ -5,11 +5,8 @@ import { MENSAJES, type CodigoMensaje } from './mensajes.ts';
  * CONFLICTO    → los datos son válidos pero chocan con el estado actual
  *                (serial repetido, equipo que no está en stock…) (HTTP 409).
  * NO_ENCONTRADO→ el recurso referenciado no existe (HTTP 404).
- * NO_AUTENTICADO → falta iniciar sesión o la sesión venció (HTTP 401).
- * PROHIBIDO    → la sesión es válida pero el rol no alcanza (HTTP 403).
- * LIMITE       → demasiados intentos seguidos (HTTP 429).
  */
-export type TipoError = 'VALIDACION' | 'CONFLICTO' | 'NO_ENCONTRADO' | 'NO_AUTENTICADO' | 'PROHIBIDO' | 'LIMITE' | 'INTERNO';
+export type TipoError = 'VALIDACION' | 'CONFLICTO' | 'NO_ENCONTRADO' | 'INTERNO';
 
 export interface DetalleError {
   campo: string;

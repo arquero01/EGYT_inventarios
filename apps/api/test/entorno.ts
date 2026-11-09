@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
-import type { FastifyInstance, InjectOptions } from 'fastify';
-import { construirApp, type OpcionesApp } from '../src/app.ts';
+import type { FastifyInstance } from 'fastify';
+import { construirApp } from '../src/app.ts';
 import { conectar, type Conexion } from '../src/db/cliente.ts';
 import { migrar } from '../src/db/migrar.ts';
 
@@ -9,48 +9,18 @@ import { migrar } from '../src/db/migrar.ts';
  * Con TEST_DATABASE_URL=postgres://… corre contra un PostgreSQL real; en ese
  * caso BORRA el esquema public, así que use una base exclusiva para pruebas.
  */
-export interface Entorno {
-  app: FastifyInstance;
-  conexion: Conexion;
-  /** Token del administrador creado al iniciar (vacío si sesion: false). */
-  token: string;
-  /** inject sin el encabezado de sesión automático. */
-  sinSesion: (opciones: InjectOptions) => ReturnType<FastifyInstance['inject']>;
-  cerrar: () => Promise<void>;
-}
-
-export const ADMIN_PRUEBAS = { nombre: 'Administradora Pruebas', correo: 'admin@egt.co', contrasena: 'clave-segura-1' };
-
-/**
- * Por defecto registra una cuenta de administrador y hace que todas las
- * llamadas a app.inject lleven su token, así las pruebas de inventario no
- * tienen que preocuparse por la sesión.
- */
-export async function crearEntorno(
-  opciones: Pick<OpcionesApp, 'registroRequiereAprobacion'> & { sesion?: boolean } = {},
-): Promise<Entorno> {
+export async function crearEntorno(): Promise<{ app: FastifyInstance; conexion: Conexion; cerrar: () => Promise<void> }> {
   const url = process.env.TEST_DATABASE_URL ?? 'pglite:memoria';
   const conexion = await conectar(url);
   if (!url.startsWith('pglite:')) {
     await conexion.ejecutarScript('DROP SCHEMA public CASCADE; CREATE SCHEMA public;');
   }
   await migrar(conexion);
-  const app = construirApp(conexion.db, { registroRequiereAprobacion: opciones.registroRequiereAprobacion ?? false });
+  const app = construirApp(conexion.db);
   await app.ready();
-  const original = app.inject.bind(app) as (o: InjectOptions) => ReturnType<FastifyInstance['inject']>;
-  let token = '';
-  if (opciones.sesion !== false) {
-    const r = await original({ method: 'POST', url: '/auth/registro', payload: ADMIN_PRUEBAS });
-    if (r.statusCode !== 201) throw new Error(`No se pudo crear el administrador de pruebas: ${r.body}`);
-    token = r.json().token;
-    const conToken = (o: InjectOptions) => original({ ...o, headers: { authorization: `Bearer ${token}`, ...o.headers } });
-    (app as unknown as { inject: typeof conToken }).inject = conToken;
-  }
   return {
     app,
     conexion,
-    token,
-    sinSesion: original,
     cerrar: async () => {
       await app.close();
       await conexion.cerrar();

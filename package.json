@@ -8,10 +8,7 @@
   },
   "scripts": {
     "dev": "pnpm --filter @egt/api dev",
-    "dev:web": "pnpm --filter @egt/web dev",
-    "build:web": "pnpm --filter @egt/web build",
-    "build": "pnpm --filter @egt/web build && pnpm --filter @egt/api build",
-    "start": "pnpm --filter @egt/api start",
+    "build": "pnpm --filter @egt/api build",
     "migrate": "pnpm --filter @egt/api migrate",
     "test": "pnpm -r test",
     "typecheck": "pnpm -r typecheck"

@@ -53,12 +53,9 @@ function condiciones(f: FiltrosEquipos): SQL | undefined {
     if (termino.length < 2) throw errorValidacion('RF-22-MINIMO', [{ campo: 'q', problema: 'Mínimo 2 caracteres' }]);
     const patron = `%${escaparLike(termino)}%`;
     const patronSerial = `%${escaparLike(normalizarSerial(f.q))}%`;
-    // La cédula se compara solo con dígitos ("1.234.567" encuentra 1234567), útil al atender una PQR.
-    const digitos = f.q.replace(/\D/g, '');
-    // RF-22: serial, marca, modelo, proveedor, proyecto, usuario final o su cédula.
+    // RF-22: serial, marca, modelo, proveedor, proyecto o usuario final.
     lista.push(
       or(
-        ...(digitos.length >= 4 ? [sql`${usuariosFinales.cedula} LIKE ${`%${digitos}%`}`] : []),
         sql`${equipos.serialNormalizado} LIKE ${patronSerial}`,
         sql`${sinTildes(equipos.marca)} LIKE ${patron}`,
         sql`${sinTildes(equipos.modelo)} LIKE ${patron}`,

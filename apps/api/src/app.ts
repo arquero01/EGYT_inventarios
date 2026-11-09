@@ -1,6 +1,3 @@
-import { existsSync } from 'node:fs';
-import { join } from 'node:path';
-import fastifyStatic from '@fastify/static';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import {
@@ -29,25 +26,8 @@ import {
 } from './consultas/logistica.ts';
 import { fichaProyecto, listarProyectos } from './consultas/proyectos.ts';
 import { cambiosDesde, conflictosPendientes, marcarConflictoResuelto } from './consultas/sincronizacion.ts';
-import { exigirSesion, rutasPrivadasAuth, rutasPublicasAuth, soloAdmin } from './auth/rutas.ts';
 
-export const ESTADO_HTTP = {
-  VALIDACION: 422,
-  CONFLICTO: 409,
-  NO_ENCONTRADO: 404,
-  NO_AUTENTICADO: 401,
-  PROHIBIDO: 403,
-  LIMITE: 429,
-  INTERNO: 500,
-} as const;
-
-export interface OpcionesApp {
-  logger?: boolean | object;
-  /** true → las cuentas nuevas esperan autorización de un administrador. */
-  registroRequiereAprobacion?: boolean;
-  /** Carpeta con el panel web ya compilado (apps/web/dist). Se sirve en "/". */
-  carpetaPanel?: string | null;
-}
+const ESTADO_HTTP = { VALIDACION: 422, CONFLICTO: 409, NO_ENCONTRADO: 404, INTERNO: 500 } as const;
 
 /** Valida query/params con Zod y lanza el error de negocio indicado. */
 function leer<T extends z.ZodType>(schema: T, datos: unknown, codigo: CodigoMensaje = 'RF-23'): z.output<T> {
@@ -96,10 +76,8 @@ const lotePush = z.object({
   comandos: z.array(z.unknown()).min(1, 'Envíe al menos un comando').max(200, 'Máximo 200 comandos por envío'),
 });
 
-export function construirApp(db: BaseDatos, opciones: OpcionesApp = {}): FastifyInstance {
-  const app = Fastify({ logger: opciones.logger ?? false, trustProxy: true });
-  app.decorateRequest('usuario', null);
-  app.decorateRequest('token', null);
+export function construirApp(db: BaseDatos, opciones: { logger?: boolean | object } = {}): FastifyInstance {
+  const app = Fastify({ logger: opciones.logger ?? false });
 
   // ── Errores: siempre { error: { codigo, tipo, mensaje, detalles } } ──────
   app.setErrorHandler((e, req, reply) => {
@@ -121,116 +99,101 @@ export function construirApp(db: BaseDatos, opciones: OpcionesApp = {}): Fastify
 
   app.get('/salud', async () => ({ estado: 'ok' }));
 
-  // ── Panel web de la oficina (archivos estáticos, sin sesión) ────────────
-  // Usa rutas con # (HashRouter): basta con servir los archivos tal cual.
-  if (opciones.carpetaPanel && existsSync(join(opciones.carpetaPanel, 'index.html'))) {
-    app.register(fastifyStatic, { root: opciones.carpetaPanel, prefix: '/', index: 'index.html' });
-  }
+  // ── Escrituras ──────────────────────────────────────────────────────────
 
-  // ── Cuentas: registro e ingreso no piden sesión ─────────────────────────
-  rutasPublicasAuth(app, db, { registroRequiereAprobacion: opciones.registroRequiereAprobacion ?? false });
+  /** Una operación en línea. Mismo formato que las que se envían por /sync/push. */
+  app.post('/comandos', async (req, reply) => {
+    const r = await ejecutarComando(db, req.body, 'EN_LINEA');
+    if (r.resultado === 'RECHAZADO' && r.error) {
+      return reply.status(ESTADO_HTTP[r.error.tipo]).send({ id: r.id, duplicado: r.duplicado, error: r.error });
+    }
+    return reply.status(r.duplicado ? 200 : 201).send(r);
+  });
 
-  // Todo lo que sigue exige haber iniciado sesión (encabezado Authorization: Bearer <token>).
-  app.register(async (app) => {
-    app.addHook('onRequest', exigirSesion(db));
-    rutasPrivadasAuth(app, db);
+  /** RF-23: valida sin guardar. Devuelve { valido: boolean, error? }. */
+  app.post('/comandos/validar', async (req) => {
+    const r = validarComando(req.body);
+    return r.valido ? { valido: true } : { valido: false, error: r.error.toJSON() };
+  });
 
-    // ── Escrituras ──────────────────────────────────────────────────────────
+  // ── Sincronización (RNF-01) ─────────────────────────────────────────────
 
-    /** Una operación en línea. Mismo formato que las que se envían por /sync/push. */
-    app.post('/comandos', async (req, reply) => {
-      const r = await ejecutarComando(db, req.body, 'EN_LINEA', req.usuario);
-      if (r.resultado === 'RECHAZADO' && r.error) {
-        return reply.status(ESTADO_HTTP[r.error.tipo]).send({ id: r.id, duplicado: r.duplicado, error: r.error });
-      }
-      return reply.status(r.duplicado ? 200 : 201).send(r);
-    });
+  /** Envía las operaciones hechas sin conexión, en el orden en que ocurrieron. */
+  app.post('/sync/push', async (req) => {
+    const { comandos } = leer(lotePush, req.body);
+    const resultados = [];
+    for (const c of comandos) {
+      resultados.push(await ejecutarComando(db, c, 'SINCRONIZACION'));
+    }
+    const rechazados = resultados.filter((r) => r.resultado === 'RECHAZADO').length;
+    return {
+      resultados,
+      ...(rechazados > 0 ? { aviso: { codigo: 'RNF-01', mensaje: MENSAJES['RNF-01'], rechazados } } : {}),
+    };
+  });
 
-    /** RF-23: valida sin guardar. Devuelve { valido: boolean, error? }. */
-    app.post('/comandos/validar', async (req) => {
-      const r = validarComando(req.body);
-      return r.valido ? { valido: true } : { valido: false, error: r.error.toJSON() };
-    });
+  app.get('/sync/cambios', async (req) => {
+    const { desde, limite } = leer(paginaCambios, req.query);
+    return cambiosDesde(db, desde, limite);
+  });
 
-    // ── Sincronización (RNF-01) ─────────────────────────────────────────────
+  app.get('/sync/conflictos', async () => conflictosPendientes(db));
 
-    /** Envía las operaciones hechas sin conexión, en el orden en que ocurrieron. */
-    app.post('/sync/push', async (req) => {
-      const { comandos } = leer(lotePush, req.body);
-      const resultados = [];
-      for (const c of comandos) {
-        resultados.push(await ejecutarComando(db, c, 'SINCRONIZACION', req.usuario));
-      }
-      const rechazados = resultados.filter((r) => r.resultado === 'RECHAZADO').length;
-      return {
-        resultados,
-        ...(rechazados > 0 ? { aviso: { codigo: 'RNF-01', mensaje: MENSAJES['RNF-01'], rechazados } } : {}),
-      };
-    });
+  app.post('/sync/conflictos/:id/resolver', async (req) => {
+    const { id } = leer(idUuid, req.params);
+    return marcarConflictoResuelto(db, id);
+  });
 
-    app.get('/sync/cambios', async (req) => {
-      const { desde, limite } = leer(paginaCambios, req.query);
-      return cambiosDesde(db, desde, limite);
-    });
+  // ── Consultas ───────────────────────────────────────────────────────────
 
-    app.get('/sync/conflictos', async () => conflictosPendientes(db));
+  app.get('/inventario/resumen', async () => resumenInventario(db));
+  app.get('/inventario/stock-por-tipo', async () => stockPorTipo(db));
 
-    app.post('/sync/conflictos/:id/resolver', { preHandler: soloAdmin }, async (req) => {
-      const { id } = leer(idUuid, req.params);
-      return marcarConflictoResuelto(db, id);
-    });
+  app.get('/equipos', async (req) => {
+    const query = req.query as Record<string, unknown>;
+    // Mensajes específicos según el filtro inválido (RF-09/RF-20, RF-21).
+    const codigo: CodigoMensaje = 'estado' in query && !ESTADOS_EQUIPO.includes(query.estado as never) ? 'RF-09' : 'RF-23';
+    return listarEquipos(db, leer(filtrosEquipos, query, codigo));
+  });
 
-    // ── Consultas ───────────────────────────────────────────────────────────
+  /** RF-16: acepta el id (UUID) o el serial. */
+  app.get('/equipos/:idOSerial', async (req) => {
+    const { idOSerial } = req.params as { idOSerial: string };
+    return hojaDeVida(db, decodeURIComponent(idOSerial));
+  });
 
-    app.get('/inventario/resumen', async () => resumenInventario(db));
-    app.get('/inventario/stock-por-tipo', async () => stockPorTipo(db));
+  app.get('/proyectos', async () => listarProyectos(db));
 
-    app.get('/equipos', async (req) => {
-      const query = req.query as Record<string, unknown>;
-      // Mensajes específicos según el filtro inválido (RF-09/RF-20, RF-21).
-      const codigo: CodigoMensaje = 'estado' in query && !ESTADOS_EQUIPO.includes(query.estado as never) ? 'RF-09' : 'RF-23';
-      return listarEquipos(db, leer(filtrosEquipos, query, codigo));
-    });
+  app.get('/proyectos/:id', async (req) => {
+    const { id } = leer(idUuid, req.params, 'RF-02');
+    return fichaProyecto(db, id);
+  });
 
-    /** RF-16: acepta el id (UUID) o el serial. */
-    app.get('/equipos/:idOSerial', async (req) => {
-      const { idOSerial } = req.params as { idOSerial: string };
-      return hojaDeVida(db, decodeURIComponent(idOSerial));
-    });
+  // ── Logística (RL-01 a RL-11) ───────────────────────────────────────────
 
-    app.get('/proyectos', async () => listarProyectos(db));
+  app.get('/bodegas', async () => listarBodegas(db));
 
-    app.get('/proyectos/:id', async (req) => {
-      const { id } = leer(idUuid, req.params, 'RF-02');
-      return fichaProyecto(db, id);
-    });
+  app.get('/bodegas/:id', async (req) => {
+    const { id } = leer(idUuid, req.params, 'RL-01-NO-EXISTE');
+    return detalleBodega(db, id);
+  });
 
-    // ── Logística (RL-01 a RL-11) ───────────────────────────────────────────
+  app.get('/articulos', async () => listarArticulos(db));
 
-    app.get('/bodegas', async () => listarBodegas(db));
+  /** Artículos con cantidad disponible en una bodega o en un proyecto. */
+  app.get('/existencias', async (req) => existenciasEn(db, leer(lugarExistencias, req.query)));
 
-    app.get('/bodegas/:id', async (req) => {
-      const { id } = leer(idUuid, req.params, 'RL-01-NO-EXISTE');
-      return detalleBodega(db, id);
-    });
+  app.get('/articulos/:id', async (req) => {
+    const { id } = leer(idUuid, req.params, 'RL-03-NO-EXISTE');
+    return kardexArticulo(db, id);
+  });
 
-    app.get('/articulos', async () => listarArticulos(db));
+  app.get('/movimientos', async (req) => listarMovimientos(db, leer(filtrosMovimientos, req.query)));
 
-    /** Artículos con cantidad disponible en una bodega o en un proyecto. */
-    app.get('/existencias', async (req) => existenciasEn(db, leer(lugarExistencias, req.query)));
-
-    app.get('/articulos/:id', async (req) => {
-      const { id } = leer(idUuid, req.params, 'RL-03-NO-EXISTE');
-      return kardexArticulo(db, id);
-    });
-
-    app.get('/movimientos', async (req) => listarMovimientos(db, leer(filtrosMovimientos, req.query)));
-
-    /** Guía de un movimiento: acepta el id o el número (DES-000001). */
-    app.get('/movimientos/:idONumero', async (req) => {
-      const { idONumero } = req.params as { idONumero: string };
-      return detalleMovimiento(db, decodeURIComponent(idONumero));
-    });
+  /** Guía de un movimiento: acepta el id o el número (DES-000001). */
+  app.get('/movimientos/:idONumero', async (req) => {
+    const { idONumero } = req.params as { idONumero: string };
+    return detalleMovimiento(db, decodeURIComponent(idONumero));
   });
 
   return app;

@@ -46,20 +46,6 @@ export const MENSAJES = {
   'RL-10-NO-EXISTE': 'Error: El movimiento consultado no existe.',
   'RL-11': 'Aviso: La bodega no tiene existencias.',
 
-  // Cuentas de usuario (propio).
-  'AUTH-01': 'Error: Correo o contraseña incorrectos.',
-  'AUTH-02': 'Error: Ya existe una cuenta con ese correo.',
-  'AUTH-03': 'Su cuenta fue creada y está pendiente de autorización por un administrador.',
-  'AUTH-04': 'Error: La cuenta está desactivada. Comuníquese con un administrador.',
-  'AUTH-05': 'Error: Debe iniciar sesión para continuar.',
-  'AUTH-06': 'Error: Su sesión venció. Inicie sesión de nuevo.',
-  'AUTH-07': 'Error: Esta operación solo la puede hacer un administrador.',
-  'AUTH-08': 'Error: Demasiados intentos. Espere unos minutos e intente de nuevo.',
-  'AUTH-09': 'Error: La contraseña actual no es correcta.',
-  'AUTH-10': 'Error: Debe quedar al menos un administrador activo.',
-  'AUTH-11': 'Error de validación: revise los datos de la cuenta.',
-  'AUTH-12': 'Error: El usuario no existe.',
-
   // (propio) Casos que el documento no cubre.
   'RF-08-FACTURA': 'Error: Ya existe una factura con ese NIT y número, pero con proveedor o fecha de compra distintos.',
   'RF-22-MINIMO': 'Error: La búsqueda debe tener al menos 2 caracteres.',

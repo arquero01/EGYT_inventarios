@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Alert } from 'react-native';
 import type { Accion } from '@egt/domain';
-import { leerSesion, nuevoId } from '../api/cliente.ts';
+import { leerAjustes, nuevoId } from '../api/cliente.ts';
 import type { ProyectoEnLista } from '../api/tipos.ts';
 import type { PropsPila } from '../navegacion.tsx';
 import { Aviso, Boton, Campo, Pantalla, Selector, TextoSuave, Titulo } from '../ui/componentes.tsx';
@@ -40,7 +40,7 @@ export function AccionEquipo({ route, navigation }: PropsPila<'AccionEquipo'>) {
 
   useEffect(() => {
     navigation.setOptions({ title: TITULO[accion] });
-    leerSesion().then((s) => s && setV((x) => (x.tecnico ? x : { ...x, tecnico: s.usuario.nombre })));
+    leerAjustes().then((a) => a.autor && setV((x) => (x.tecnico ? x : { ...x, tecnico: a.autor })));
   }, [accion, navigation]);
 
   const armar = (): { tipo: Parameters<typeof f.enviar>[0]; payload: Record<string, unknown> } => {

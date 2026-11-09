@@ -2,44 +2,13 @@
 
 Inventarios para la empresa prestadora de servicios eg&t: control de equipos de energía sostenible (paneles, baterías, inversores y medidores) y de la logística de bodegas, despachos, traslados y devoluciones.
 
-El proyecto tiene cuatro partes:
+El proyecto tiene tres partes:
 
 | Carpeta | Qué es |
 |---|---|
-| `packages/domain` | Reglas del negocio (estados, validaciones, mensajes). Las usan el servidor, la app y el panel. |
-| `apps/api` | Servidor (API) con PostgreSQL. También sirve el panel web. |
-| `apps/mobile` | App Android para campo (React Native con Expo SDK 57). Funciona sin señal. |
-| `apps/web` | Panel web para la oficina (React + Vite). |
-
-## Imagen
-
-El panel y la app usan el logo de eg&t (`apps/web/public/logo-egt.png` y `apps/mobile/assets/logo-egt.png`) y sus azules: `#0093FF`, `#22A5FF`, `#39AFFF` y `#5AC3FF`, con azul noche `#0A2540` para menús y encabezados. Para botones y enlaces se usa `#006FC8`, el mismo azul más profundo, porque el del logo no alcanza a leerse bien con letra blanca. Verde (instalado) y ámbar (mantenimiento, pendiente) quedan solo para los estados. El ícono de la app se generó con el logo; con una versión del logo en mayor tamaño o en vector (SVG) quedaría más nítido.
-
-## Cuentas de usuario
-
-Todos entran con **correo y contraseña**. Quien no tiene cuenta se registra desde la app o el panel.
-
-- **La primera persona que se registra queda como administrador.** Las demás quedan como usuario.
-- **Usuario:** consulta y registra todas las operaciones (ingresos, despachos, instalaciones, mantenimiento…).
-- **Administrador:** además da de baja equipos, autoriza, desactiva o cambia el rol de las cuentas, restablece contraseñas olvidadas (genera una temporal) y marca como revisadas las operaciones rechazadas al sincronizar.
-- **Registro inmediato (configuración actual).** Quien se registra entra de una vez. Para que las cuentas nuevas esperen la autorización de un administrador, ponga `REGISTRO_REQUIERE_APROBACION=true` en `apps/api/.env` y reinicie el servidor. No hay que cambiar código: el panel y la app lo detectan solos y el administrador ve las cuentas por autorizar en **Cuentas**.
-- Siempre queda al menos un administrador activo. Desactivar una cuenta cierra sus sesiones de inmediato.
-- Cada operación queda firmada en el servidor con la cuenta que la hizo; no se puede registrar a nombre de otra persona.
-- Las contraseñas se guardan cifradas con scrypt (nunca en texto). La sesión dura 30 días; la app la guarda en el celular para seguir trabajando sin señal. Hay un límite de intentos fallidos para frenar a quien intente adivinar contraseñas.
-
-## Panel web (oficina)
-
-Al ejecutar `pnpm build` (o `pnpm build:web`), el servidor sirve el panel en su misma dirección: abra `http://localhost:3000` (o la dirección pública del Codespace) en el navegador.
-
-| Sección | Qué hace |
-|---|---|
-| Inicio | Dónde están los equipos (en stock, instalados, mantenimiento, baja; en bodega o en campo), stock por tipo, últimas guías y, para administradores, cuentas por autorizar y operaciones rechazadas |
-| Equipos | Tabla con búsqueda por serial, nombre o **cédula del usuario final** y filtros por tipo, estado, bodega y proyecto; hoja de vida con historial y acciones (instalar, retirar, mantenimiento, cambio de proyecto, baja) |
-| Ingreso de equipo | Formulario por unidad con la opción de seguir con la siguiente unidad de la misma factura |
-| Proyectos, Bodegas, Artículos | Listas, fichas, kardex e ingreso de artículos con factura |
-| Guías | Todas las guías numeradas; despacho, traslado y devolución con equipos y artículos en una misma guía; la guía se puede imprimir |
-| Cuentas | Solo administradores |
-| Mi cuenta | Cambiar contraseña y cerrar sesión |
+| `packages/domain` | Reglas del negocio (estados, validaciones, mensajes). Las usan el servidor y la app. |
+| `apps/api` | Servidor (API) con PostgreSQL. |
+| `apps/mobile` | App Android (React Native con Expo SDK 57). |
 
 ## Obtener la APK
 
@@ -56,14 +25,12 @@ La app necesita la dirección pública del servidor. Para pruebas y demostracion
 1. En la terminal del Codespace:
    ```bash
    pnpm install
-   pnpm build:web
    pnpm dev
    ```
    El servidor queda en el puerto 3000, con PostgreSQL embebido. Los datos se guardan en `apps/api/.pglite`.
 2. En la pestaña **Puertos**, clic derecho sobre el **3000** → **Visibilidad del puerto** → **Público**.
 3. Copie la **dirección reenviada** (algo como `https://nombre-del-codespace-3000.app.github.dev`).
-4. **Panel:** abra esa dirección en el navegador y cree la primera cuenta (quedará como administrador).
-5. **App:** en la pantalla de inicio de sesión toque *Servidor*, pegue la dirección → **Guardar y probar** → entre o regístrese.
+4. En la app: **Ajustes** → pegue la dirección → **Guardar y probar conexión**.
 
 Codespaces se apaga tras 30 minutos sin actividad. Mientras tanto, la app sigue funcionando: muestra los últimos datos guardados y deja las operaciones en cola hasta que el servidor vuelva. Para uso diario, el servidor debe ir en un hosting permanente con PostgreSQL (ver *Producción*).
 
@@ -74,8 +41,6 @@ Requiere Node.js 22 o superior y pnpm 12 (`npm install -g pnpm`).
 ```bash
 pnpm install
 pnpm dev          # API en http://localhost:3000 con PostgreSQL embebido
-pnpm dev:web      # panel en http://localhost:5173 (con recarga al guardar; usa la API del puerto 3000)
-pnpm build:web    # compila el panel para que la API lo sirva en http://localhost:3000
 pnpm test         # pruebas del dominio, la API y la app
 pnpm typecheck    # revisión de tipos de todo el proyecto
 ```
@@ -87,12 +52,10 @@ La app se prueba en un celular con Android Studio o con `pnpm --filter @egt/mobi
 Con un PostgreSQL real: copie `apps/api/.env.example` a `apps/api/.env`, ponga `DATABASE_URL=postgres://…` y ejecute:
 
 ```bash
-pnpm build                          # panel web + servidor
+pnpm build
 pnpm --filter @egt/api migrate:prod
-pnpm start
+pnpm --filter @egt/api start
 ```
-
-Publique el servidor solo con **HTTPS** (las contraseñas viajan en cada inicio de sesión).
 
 Para desarrollo local con PostgreSQL: `docker compose up -d`. Para correr las pruebas contra un PostgreSQL real (borra el esquema `public` de esa base): `TEST_DATABASE_URL=postgres://usuario@localhost:5432/egt_pruebas pnpm test`.
 
@@ -104,9 +67,7 @@ Para desarrollo local con PostgreSQL: `docker compose up -d`. Para correr las pr
 | Inventario | Búsqueda (RF-22), filtros por estado, tipo y ubicación (RF-19 a RF-21) y hoja de vida (RF-16, RF-17) con sus acciones: instalar, retirar, mantenimiento, baja y cambio de proyecto (RF-03, RF-11 a RF-15) |
 | Proyectos | Lista con resumen (RF-05), ficha y equipos del proyecto (RF-02, RF-04), creación (RF-01) |
 | Logística | Ingreso de equipos y de artículos, despachos, traslados, devoluciones, bodegas, kardex de artículos y guías |
-| Ajustes | Mi cuenta (cambiar contraseña, cerrar sesión), dirección del servidor, cola sin conexión y operaciones rechazadas |
-
-Antes de las pestañas, la app pide **iniciar sesión** o **registrarse**. Si la sesión vence o un administrador desactiva la cuenta, la app vuelve a esa pantalla sin perder las operaciones pendientes: se envían al entrar de nuevo. *Dar de baja* solo aparece para administradores.
+| Ajustes | Dirección del servidor, nombre de quien usa la app, cola sin conexión y operaciones rechazadas |
 
 **Sin conexión (RNF-01).** Cada formulario se valida en el celular con las mismas reglas del servidor (RF-23). Si no hay señal, la operación queda guardada en el celular y se envía sola cada 30 segundos o al volver a abrir la app. Las pantallas muestran la última copia de los datos con un aviso. Si al llegar una operación ya no es válida (por ejemplo, otro técnico instaló el mismo equipo), queda en **Ajustes → Operaciones rechazadas**.
 
@@ -154,19 +115,13 @@ El documento original no cubre logística. Estos requerimientos se agregaron y c
 
 ## Endpoints
 
-Todas las rutas, salvo `/salud` y las de registro e ingreso, exigen el encabezado `Authorization: Bearer <token>`.
-
 | Método | Ruta | Requerimientos |
 |---|---|---|
-| GET | `/auth/opciones` | Si el registro requiere autorización |
-| POST | `/auth/registro` · `/auth/ingresar` | Crear cuenta · iniciar sesión (devuelven el token) |
-| GET | `/auth/yo` · POST `/auth/salir` · POST `/auth/contrasena` | Cuenta actual, cerrar sesión, cambiar contraseña |
-| GET | `/usuarios` · PATCH `/usuarios/:id` · POST `/usuarios/:id/restablecer` | Solo administradores |
 | POST | `/comandos` | Todas las escrituras |
 | POST | `/comandos/validar` | RF-23 (valida sin guardar) |
 | POST | `/sync/push` | RNF-01 (lote de hasta 200 operaciones) |
 | GET | `/sync/cambios?desde=N` | RNF-01 (descarga incremental) |
-| GET | `/sync/conflictos` · POST `/sync/conflictos/:id/resolver` (administrador) | RNF-01 |
+| GET | `/sync/conflictos` · POST `/sync/conflictos/:id/resolver` | RNF-01 |
 | GET | `/inventario/resumen` | RF-18 |
 | GET | `/inventario/stock-por-tipo` | RF-10 |
 | GET | `/equipos?estado=&tipo=&proyectoId=&ubicacion=&bodegaId=&q=&pagina=&porPagina=` | RF-04, RF-19 a RF-22 |
@@ -179,7 +134,7 @@ Todas las rutas, salvo `/salud` y las de registro e ingreso, exigen el encabezad
 
 Comandos: `CREAR_PROYECTO`, `REGISTRAR_INGRESO`, `CAMBIAR_PROYECTO`, `INSTALAR_EQUIPO`, `RETIRAR_EQUIPO`, `ENVIAR_A_MANTENIMIENTO`, `FINALIZAR_MANTENIMIENTO`, `DAR_DE_BAJA`, `CREAR_BODEGA`, `CREAR_ARTICULO`, `INGRESAR_ARTICULOS`, `REGISTRAR_DESPACHO`, `REGISTRAR_TRASLADO`, `REGISTRAR_DEVOLUCION`.
 
-Los errores siempre tienen la forma `{ "error": { "codigo": "RF-07", "tipo": "CONFLICTO", "mensaje": "…", "detalles": [{ "campo", "problema" }] } }`, con HTTP 422 (validación), 409 (conflicto con el estado actual), 404 (no existe), 401 (falta iniciar sesión o venció), 403 (el rol no alcanza) o 429 (demasiados intentos). Los listados vacíos responden 200 con un `aviso`.
+Los errores siempre tienen la forma `{ "error": { "codigo": "RF-07", "tipo": "CONFLICTO", "mensaje": "…", "detalles": [{ "campo", "problema" }] } }`, con HTTP 422 (validación), 409 (conflicto con el estado actual) o 404 (no existe). Los listados vacíos responden 200 con un `aviso`.
 
 ## Decisiones y supuestos por confirmar
 
@@ -199,7 +154,4 @@ Supuestos que conviene validar con la empresa:
 - **Instalar desde bodega:** se permite instalar un equipo que sigue en bodega (queda en campo). Si la empresa exige despacharlo antes, es una regla de una línea.
 - **Usuario final:** se identifica por cédula; si se instala de nuevo con otro nombre o teléfono, se actualiza al último dato.
 
-- **Búsqueda por cédula:** se agregó para atender las PQR (el técnico encuentra los equipos del usuario que llama).
-- **Contraseña olvidada:** no hay envío de correos; el administrador genera una contraseña temporal y se la entrega a la persona.
-
-Pendiente: garantías, PQR, reposición al usuario y disposición final.
+Pendiente: garantías, PQR, reposición al usuario, disposición final, autenticación y roles. **Mientras no haya inicio de sesión, cualquiera que tenga la dirección del servidor puede usarlo**, así que no la publique en lugares abiertos.
