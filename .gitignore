@@ -4,3 +4,4 @@ dist/
 *.log
 .pglite/
 package-lock.json
+*.tar.gz

@@ -4,7 +4,7 @@ import type { HojaDeVida as Hoja, Instalacion } from '../api/tipos.ts';
 import type { PropsPila } from '../navegacion.tsx';
 import { Aviso, AvisoDesactualizado, Boton, Cargando, FilaDato, InsigniaEstado, Pantalla, Seccion, Tarjeta, TextoSuave, Titulo, type NombreIcono } from '../ui/componentes.tsx';
 import { cantidad, fecha, fechaHora, pesos } from '../ui/formato.ts';
-import { useLectura } from '../ui/ganchos.ts';
+import { useLectura, useSesion } from '../ui/ganchos.ts';
 import { color, espacio } from '../ui/tema.ts';
 
 const ACCION: Record<Accion, { texto: string; icono: NombreIcono; variante: 'primario' | 'secundario' | 'peligro' }> = {
@@ -19,11 +19,14 @@ const ACCION: Record<Accion, { texto: string; icono: NombreIcono; variante: 'pri
 /** RF-16 (hoja de vida) y RF-17 (historial), con las acciones que permite su estado. */
 export function HojaDeVida({ route, navigation }: PropsPila<'HojaDeVida'>) {
   const { datos, cargando, error, desactualizado, guardadoEn, recargar } = useLectura<Hoja>(`/equipos/${route.params.equipoId}`);
+  const sesion = useSesion();
 
   if (!datos) {
     return <Pantalla>{error ? <Aviso tipo="error">{error.message}</Aviso> : cargando ? <Cargando /> : null}</Pantalla>;
   }
   const { equipo: e, proyecto, compra } = datos;
+  // Dar de baja es solo para administradores.
+  const acciones = e.accionesPermitidas.filter((a) => a !== 'DAR_DE_BAJA' || sesion?.usuario.rol === 'ADMIN');
 
   return (
     <Pantalla alRecargar={recargar} recargando={cargando}>
@@ -49,9 +52,9 @@ export function HojaDeVida({ route, navigation }: PropsPila<'HojaDeVida'>) {
         </Seccion>
       ) : null}
 
-      {e.accionesPermitidas.length > 0 || e.movimientosPosibles.length > 0 ? (
+      {acciones.length > 0 || e.movimientosPosibles.length > 0 ? (
         <Seccion titulo="Acciones">
-          {e.accionesPermitidas.map((a) => (
+          {acciones.map((a) => (
             <Boton
               key={a}
               texto={ACCION[a].texto}

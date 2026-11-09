@@ -15,6 +15,13 @@ export interface Conexion {
   /** Ejecuta un script SQL con varias sentencias (para migraciones). */
   ejecutarScript(sql: string): Promise<void>;
   cerrar(): Promise<void>;
+  /** Solo con PGlite: copia completa de la base en un archivo .tar.gz. */
+  respaldar?: () => Promise<Blob>;
+}
+
+export interface OpcionesConexion {
+  /** Solo con PGlite y una carpeta vacía: arranca desde una copia de seguridad. */
+  restaurarDesde?: Blob;
 }
 
 /**
@@ -23,10 +30,11 @@ export interface Conexion {
  *  - pglite:memoria                           → PostgreSQL embebido en memoria (pruebas)
  *  - pglite:./.pglite                         → PostgreSQL embebido en una carpeta (desarrollo sin instalar nada)
  */
-export async function conectar(url: string): Promise<Conexion> {
+export async function conectar(url: string, opciones: OpcionesConexion = {}): Promise<Conexion> {
   if (url.startsWith('pglite:')) {
     const ruta = url.slice('pglite:'.length);
-    const cliente = ruta === 'memoria' ? new PGlite() : new PGlite(ruta);
+    const extra = opciones.restaurarDesde ? { loadDataDir: opciones.restaurarDesde } : {};
+    const cliente = ruta === 'memoria' ? new PGlite(extra) : new PGlite(ruta, extra);
     await cliente.waitReady;
     const db = drizzlePglite({ client: cliente, schema: esquema }) as unknown as BaseDatos;
     return {
@@ -35,6 +43,10 @@ export async function conectar(url: string): Promise<Conexion> {
         await cliente.exec(sql);
       },
       cerrar: () => cliente.close(),
+      respaldar: async () => {
+        const copia = await cliente.dumpDataDir('gzip');
+        return copia instanceof Blob ? copia : new Blob([copia]);
+      },
     };
   }
 

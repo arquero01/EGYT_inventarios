@@ -25,6 +25,18 @@ afterAll(async () => {
   await conexion.cerrar();
 });
 
+it('sin compilar, "/" explica qué hacer; al compilar aparece sin reiniciar', async () => {
+  const carpeta = mkdtempSync(join(tmpdir(), 'panel-vacio-'));
+  const otra = construirApp(conexion.db, { carpetaPanel: carpeta });
+  await otra.ready();
+  const antes = await otra.inject({ method: 'GET', url: '/' });
+  expect(antes.statusCode).toBe(200);
+  expect(antes.body).toContain('pnpm build:web');
+  writeFileSync(join(carpeta, 'index.html'), '<!doctype html><title>panel listo</title>');
+  expect((await otra.inject({ method: 'GET', url: '/' })).body).toContain('panel listo');
+  await otra.close();
+});
+
 it('sirve el panel web sin sesión y la API sigue protegida', async () => {
   const inicio = await app.inject({ method: 'GET', url: '/' });
   expect(inicio.statusCode).toBe(200);

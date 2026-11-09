@@ -1,3 +1,6 @@
+import { existsSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { construirApp } from './app.ts';
 import { cargarConfiguracion } from './configuracion.ts';
 import { conectar } from './db/cliente.ts';
@@ -11,7 +14,20 @@ if (config.migrarAlIniciar || config.databaseUrl.startsWith('pglite:')) {
   await migrar(conexion, (m) => console.log(m));
 }
 
-const app = construirApp(conexion.db, { logger: { level: config.nivelLog } });
+/** apps/web/dist, tanto desde src/ (desarrollo) como desde dist/ (producción). */
+function carpetaPanel(): string {
+  if (config.carpetaPanel) return resolve(config.carpetaPanel);
+  return resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', 'web', 'dist');
+}
+const panel = carpetaPanel();
+
+const app = construirApp(conexion.db, {
+  logger: { level: config.nivelLog },
+  registroRequiereAprobacion: config.registroRequiereAprobacion,
+  carpetaPanel: panel,
+});
+if (existsSync(join(panel, 'index.html'))) app.log.info(`Panel web servido desde ${panel}`);
+else app.log.warn('El panel web no está compilado: ejecute "pnpm build:web" (no hace falta reiniciar el servidor).');
 
 const cerrar = async () => {
   await app.close();

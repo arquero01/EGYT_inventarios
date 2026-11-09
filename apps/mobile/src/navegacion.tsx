@@ -3,6 +3,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { DefaultTheme, NavigationContainer, type NavigatorScreenParams } from '@react-navigation/native';
 import { createNativeStackNavigator, type NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { Accion, MovimientoEquipo } from '@egt/domain';
+import { Image } from 'react-native';
 import { color } from './ui/tema.ts';
 import { Inicio } from './pantallas/Inicio.tsx';
 import { Inventario } from './pantallas/Inventario.tsx';
@@ -16,6 +17,8 @@ import { Articulos, ArticuloDetalle, NuevoArticulo, IngresoArticulos } from './p
 import { Movimientos, MovimientoDetalle } from './pantallas/Movimientos.tsx';
 import { NuevoMovimiento } from './pantallas/NuevoMovimiento.tsx';
 import { Ajustes, Rechazados } from './pantallas/Ajustes.tsx';
+
+const LOGO = require('../assets/logo-egt.png');
 
 export type Pestanas = {
   Inicio: undefined;
@@ -59,7 +62,7 @@ const ICONOS: Record<keyof Pestanas, keyof typeof Ionicons.glyphMap> = {
 };
 
 const cabecera = {
-  headerStyle: { backgroundColor: color.primario },
+  headerStyle: { backgroundColor: color.noche },
   headerTintColor: '#FFFFFF',
   headerTitleStyle: { fontWeight: '700' as const },
 };
@@ -74,7 +77,16 @@ function PestanasPrincipales() {
         tabBarIcon: ({ color: tinta, size }) => <Ionicons name={ICONOS[route.name]} size={size} color={tinta} />,
       })}
     >
-      <Tab.Screen name="Inicio" component={Inicio} options={{ title: 'eg&t Inventario', tabBarLabel: 'Inicio' }} />
+      <Tab.Screen
+        name="Inicio"
+        component={Inicio}
+        options={{
+          title: 'eg&t Inventario',
+          tabBarLabel: 'Inicio',
+          // El logo va tal cual sobre el azul noche, igual que en el panel web.
+          headerTitle: () => <Image source={LOGO} style={{ width: 78, height: 36 }} resizeMode="contain" accessibilityLabel="eg&t Inventario" />,
+        }}
+      />
       <Tab.Screen name="Inventario" component={Inventario} />
       <Tab.Screen name="Proyectos" component={Proyectos} />
       <Tab.Screen name="Logistica" component={Logistica} options={{ title: 'Logística' }} />

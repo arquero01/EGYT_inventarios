@@ -1,3 +1,6 @@
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
+import fastifyStatic from '@fastify/static';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import {
@@ -26,8 +29,37 @@ import {
 } from './consultas/logistica.ts';
 import { fichaProyecto, listarProyectos } from './consultas/proyectos.ts';
 import { cambiosDesde, conflictosPendientes, marcarConflictoResuelto } from './consultas/sincronizacion.ts';
+import { exigirSesion, rutasPrivadasAuth, rutasPublicasAuth, soloAdmin } from './auth/rutas.ts';
 
-const ESTADO_HTTP = { VALIDACION: 422, CONFLICTO: 409, NO_ENCONTRADO: 404, INTERNO: 500 } as const;
+export const ESTADO_HTTP = {
+  VALIDACION: 422,
+  CONFLICTO: 409,
+  NO_ENCONTRADO: 404,
+  NO_AUTENTICADO: 401,
+  PROHIBIDO: 403,
+  LIMITE: 429,
+  INTERNO: 500,
+} as const;
+
+/** Lo que se ve en "/" si el panel todavía no se ha compilado. */
+const PANEL_SIN_COMPILAR = `<!doctype html><html lang="es"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>eg&amp;t Inventario</title>
+<body style="font-family:system-ui,sans-serif;background:#f2f7fc;color:#0f2236;padding:40px 20px">
+<div style="max-width:560px;margin:auto;background:#fff;border:1px solid #d3dee9;border-radius:8px;padding:28px">
+<h1 style="margin-top:0;font-size:24px">El servidor está funcionando</h1>
+<p>Falta compilar el panel web. En la terminal ejecute:</p>
+<pre style="background:#0a2540;color:#fff;padding:14px;border-radius:6px">pnpm build:web</pre>
+<p>Cuando termine, recargue esta página. No hace falta reiniciar el servidor.</p>
+<p style="color:#526477;font-size:14px">La app del celular ya puede conectarse a esta dirección.</p>
+</div></body></html>`;
+
+export interface OpcionesApp {
+  logger?: boolean | object;
+  /** true → las cuentas nuevas esperan autorización de un administrador. */
+  registroRequiereAprobacion?: boolean;
+  /** Carpeta con el panel web ya compilado (apps/web/dist). Se sirve en "/". */
+  carpetaPanel?: string | null;
+}
 
 /** Valida query/params con Zod y lanza el error de negocio indicado. */
 function leer<T extends z.ZodType>(schema: T, datos: unknown, codigo: CodigoMensaje = 'RF-23'): z.output<T> {
@@ -76,8 +108,10 @@ const lotePush = z.object({
   comandos: z.array(z.unknown()).min(1, 'Envíe al menos un comando').max(200, 'Máximo 200 comandos por envío'),
 });
 
-export function construirApp(db: BaseDatos, opciones: { logger?: boolean | object } = {}): FastifyInstance {
-  const app = Fastify({ logger: opciones.logger ?? false });
+export function construirApp(db: BaseDatos, opciones: OpcionesApp = {}): FastifyInstance {
+  const app = Fastify({ logger: opciones.logger ?? false, trustProxy: true });
+  app.decorateRequest('usuario', null);
+  app.decorateRequest('token', null);
 
   // ── Errores: siempre { error: { codigo, tipo, mensaje, detalles } } ──────
   app.setErrorHandler((e, req, reply) => {
@@ -99,101 +133,123 @@ export function construirApp(db: BaseDatos, opciones: { logger?: boolean | objec
 
   app.get('/salud', async () => ({ estado: 'ok' }));
 
-  // ── Escrituras ──────────────────────────────────────────────────────────
+  // ── Panel web de la oficina (archivos estáticos, sin sesión) ────────────
+  // Usa rutas con # (HashRouter): basta con servir los archivos tal cual.
+  // La carpeta se revisa en cada visita: si el panel se compila con el
+  // servidor ya encendido, aparece sin reiniciar.
+  if (opciones.carpetaPanel) {
+    const carpeta = opciones.carpetaPanel;
+    app.register(fastifyStatic, { root: carpeta, prefix: '/', index: false });
+    app.get('/', async (_req, reply) => {
+      if (existsSync(join(carpeta, 'index.html'))) return reply.sendFile('index.html');
+      return reply.type('text/html; charset=utf-8').send(PANEL_SIN_COMPILAR);
+    });
+  }
 
-  /** Una operación en línea. Mismo formato que las que se envían por /sync/push. */
-  app.post('/comandos', async (req, reply) => {
-    const r = await ejecutarComando(db, req.body, 'EN_LINEA');
-    if (r.resultado === 'RECHAZADO' && r.error) {
-      return reply.status(ESTADO_HTTP[r.error.tipo]).send({ id: r.id, duplicado: r.duplicado, error: r.error });
-    }
-    return reply.status(r.duplicado ? 200 : 201).send(r);
-  });
+  // ── Cuentas: registro e ingreso no piden sesión ─────────────────────────
+  rutasPublicasAuth(app, db, { registroRequiereAprobacion: opciones.registroRequiereAprobacion ?? false });
 
-  /** RF-23: valida sin guardar. Devuelve { valido: boolean, error? }. */
-  app.post('/comandos/validar', async (req) => {
-    const r = validarComando(req.body);
-    return r.valido ? { valido: true } : { valido: false, error: r.error.toJSON() };
-  });
+  // Todo lo que sigue exige haber iniciado sesión (encabezado Authorization: Bearer <token>).
+  app.register(async (app) => {
+    app.addHook('onRequest', exigirSesion(db));
+    rutasPrivadasAuth(app, db);
 
-  // ── Sincronización (RNF-01) ─────────────────────────────────────────────
+    // ── Escrituras ──────────────────────────────────────────────────────────
 
-  /** Envía las operaciones hechas sin conexión, en el orden en que ocurrieron. */
-  app.post('/sync/push', async (req) => {
-    const { comandos } = leer(lotePush, req.body);
-    const resultados = [];
-    for (const c of comandos) {
-      resultados.push(await ejecutarComando(db, c, 'SINCRONIZACION'));
-    }
-    const rechazados = resultados.filter((r) => r.resultado === 'RECHAZADO').length;
-    return {
-      resultados,
-      ...(rechazados > 0 ? { aviso: { codigo: 'RNF-01', mensaje: MENSAJES['RNF-01'], rechazados } } : {}),
-    };
-  });
+    /** Una operación en línea. Mismo formato que las que se envían por /sync/push. */
+    app.post('/comandos', async (req, reply) => {
+      const r = await ejecutarComando(db, req.body, 'EN_LINEA', req.usuario);
+      if (r.resultado === 'RECHAZADO' && r.error) {
+        return reply.status(ESTADO_HTTP[r.error.tipo]).send({ id: r.id, duplicado: r.duplicado, error: r.error });
+      }
+      return reply.status(r.duplicado ? 200 : 201).send(r);
+    });
 
-  app.get('/sync/cambios', async (req) => {
-    const { desde, limite } = leer(paginaCambios, req.query);
-    return cambiosDesde(db, desde, limite);
-  });
+    /** RF-23: valida sin guardar. Devuelve { valido: boolean, error? }. */
+    app.post('/comandos/validar', async (req) => {
+      const r = validarComando(req.body);
+      return r.valido ? { valido: true } : { valido: false, error: r.error.toJSON() };
+    });
 
-  app.get('/sync/conflictos', async () => conflictosPendientes(db));
+    // ── Sincronización (RNF-01) ─────────────────────────────────────────────
 
-  app.post('/sync/conflictos/:id/resolver', async (req) => {
-    const { id } = leer(idUuid, req.params);
-    return marcarConflictoResuelto(db, id);
-  });
+    /** Envía las operaciones hechas sin conexión, en el orden en que ocurrieron. */
+    app.post('/sync/push', async (req) => {
+      const { comandos } = leer(lotePush, req.body);
+      const resultados = [];
+      for (const c of comandos) {
+        resultados.push(await ejecutarComando(db, c, 'SINCRONIZACION', req.usuario));
+      }
+      const rechazados = resultados.filter((r) => r.resultado === 'RECHAZADO').length;
+      return {
+        resultados,
+        ...(rechazados > 0 ? { aviso: { codigo: 'RNF-01', mensaje: MENSAJES['RNF-01'], rechazados } } : {}),
+      };
+    });
 
-  // ── Consultas ───────────────────────────────────────────────────────────
+    app.get('/sync/cambios', async (req) => {
+      const { desde, limite } = leer(paginaCambios, req.query);
+      return cambiosDesde(db, desde, limite);
+    });
 
-  app.get('/inventario/resumen', async () => resumenInventario(db));
-  app.get('/inventario/stock-por-tipo', async () => stockPorTipo(db));
+    app.get('/sync/conflictos', async () => conflictosPendientes(db));
 
-  app.get('/equipos', async (req) => {
-    const query = req.query as Record<string, unknown>;
-    // Mensajes específicos según el filtro inválido (RF-09/RF-20, RF-21).
-    const codigo: CodigoMensaje = 'estado' in query && !ESTADOS_EQUIPO.includes(query.estado as never) ? 'RF-09' : 'RF-23';
-    return listarEquipos(db, leer(filtrosEquipos, query, codigo));
-  });
+    app.post('/sync/conflictos/:id/resolver', { preHandler: soloAdmin }, async (req) => {
+      const { id } = leer(idUuid, req.params);
+      return marcarConflictoResuelto(db, id);
+    });
 
-  /** RF-16: acepta el id (UUID) o el serial. */
-  app.get('/equipos/:idOSerial', async (req) => {
-    const { idOSerial } = req.params as { idOSerial: string };
-    return hojaDeVida(db, decodeURIComponent(idOSerial));
-  });
+    // ── Consultas ───────────────────────────────────────────────────────────
 
-  app.get('/proyectos', async () => listarProyectos(db));
+    app.get('/inventario/resumen', async () => resumenInventario(db));
+    app.get('/inventario/stock-por-tipo', async () => stockPorTipo(db));
 
-  app.get('/proyectos/:id', async (req) => {
-    const { id } = leer(idUuid, req.params, 'RF-02');
-    return fichaProyecto(db, id);
-  });
+    app.get('/equipos', async (req) => {
+      const query = req.query as Record<string, unknown>;
+      // Mensajes específicos según el filtro inválido (RF-09/RF-20, RF-21).
+      const codigo: CodigoMensaje = 'estado' in query && !ESTADOS_EQUIPO.includes(query.estado as never) ? 'RF-09' : 'RF-23';
+      return listarEquipos(db, leer(filtrosEquipos, query, codigo));
+    });
 
-  // ── Logística (RL-01 a RL-11) ───────────────────────────────────────────
+    /** RF-16: acepta el id (UUID) o el serial. */
+    app.get('/equipos/:idOSerial', async (req) => {
+      const { idOSerial } = req.params as { idOSerial: string };
+      return hojaDeVida(db, decodeURIComponent(idOSerial));
+    });
 
-  app.get('/bodegas', async () => listarBodegas(db));
+    app.get('/proyectos', async () => listarProyectos(db));
 
-  app.get('/bodegas/:id', async (req) => {
-    const { id } = leer(idUuid, req.params, 'RL-01-NO-EXISTE');
-    return detalleBodega(db, id);
-  });
+    app.get('/proyectos/:id', async (req) => {
+      const { id } = leer(idUuid, req.params, 'RF-02');
+      return fichaProyecto(db, id);
+    });
 
-  app.get('/articulos', async () => listarArticulos(db));
+    // ── Logística (RL-01 a RL-11) ───────────────────────────────────────────
 
-  /** Artículos con cantidad disponible en una bodega o en un proyecto. */
-  app.get('/existencias', async (req) => existenciasEn(db, leer(lugarExistencias, req.query)));
+    app.get('/bodegas', async () => listarBodegas(db));
 
-  app.get('/articulos/:id', async (req) => {
-    const { id } = leer(idUuid, req.params, 'RL-03-NO-EXISTE');
-    return kardexArticulo(db, id);
-  });
+    app.get('/bodegas/:id', async (req) => {
+      const { id } = leer(idUuid, req.params, 'RL-01-NO-EXISTE');
+      return detalleBodega(db, id);
+    });
 
-  app.get('/movimientos', async (req) => listarMovimientos(db, leer(filtrosMovimientos, req.query)));
+    app.get('/articulos', async () => listarArticulos(db));
 
-  /** Guía de un movimiento: acepta el id o el número (DES-000001). */
-  app.get('/movimientos/:idONumero', async (req) => {
-    const { idONumero } = req.params as { idONumero: string };
-    return detalleMovimiento(db, decodeURIComponent(idONumero));
+    /** Artículos con cantidad disponible en una bodega o en un proyecto. */
+    app.get('/existencias', async (req) => existenciasEn(db, leer(lugarExistencias, req.query)));
+
+    app.get('/articulos/:id', async (req) => {
+      const { id } = leer(idUuid, req.params, 'RL-03-NO-EXISTE');
+      return kardexArticulo(db, id);
+    });
+
+    app.get('/movimientos', async (req) => listarMovimientos(db, leer(filtrosMovimientos, req.query)));
+
+    /** Guía de un movimiento: acepta el id o el número (DES-000001). */
+    app.get('/movimientos/:idONumero', async (req) => {
+      const { idONumero } = req.params as { idONumero: string };
+      return detalleMovimiento(db, decodeURIComponent(idONumero));
+    });
   });
 
   return app;

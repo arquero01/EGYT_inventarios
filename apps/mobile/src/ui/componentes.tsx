@@ -87,7 +87,7 @@ const estiloAviso: Record<TipoAviso, { fondo: string; texto: string; icono: Nomb
   info: { fondo: color.infoSuave, texto: color.info, icono: 'information-circle-outline' },
   aviso: { fondo: color.avisoSuave, texto: color.aviso, icono: 'warning-outline' },
   error: { fondo: color.peligroSuave, texto: color.peligro, icono: 'alert-circle-outline' },
-  exito: { fondo: color.primarioSuave, texto: color.primarioOscuro, icono: 'checkmark-circle-outline' },
+  exito: { fondo: color.exitoSuave, texto: color.exito, icono: 'checkmark-circle-outline' },
 };
 
 export function Aviso({ tipo = 'info', children }: { tipo?: TipoAviso; children: ReactNode }) {
@@ -186,6 +186,8 @@ export function Campo({
   teclado,
   multilinea = false,
   mayusculas = 'sentences',
+  secreto = false,
+  autocompletar,
 }: {
   etiqueta: string;
   valor: string;
@@ -196,6 +198,9 @@ export function Campo({
   teclado?: KeyboardTypeOptions;
   multilinea?: boolean;
   mayusculas?: 'none' | 'sentences' | 'words' | 'characters';
+  /** Oculta lo que se escribe (contraseñas). */
+  secreto?: boolean;
+  autocompletar?: ComponentProps<typeof TextInput>['autoComplete'];
 }) {
   return (
     <View style={estilos.campo}>
@@ -204,10 +209,13 @@ export function Campo({
         value={valor}
         onChangeText={alCambiar}
         placeholder={marcador}
-        placeholderTextColor="#98A39D"
+        placeholderTextColor="#94A3B3"
         keyboardType={teclado}
         multiline={multilinea}
         autoCapitalize={mayusculas}
+        secureTextEntry={secreto}
+        autoComplete={autocompletar}
+        autoCorrect={!secreto && teclado !== 'email-address'}
         style={[estilos.entrada, multilinea && { minHeight: 80, textAlignVertical: 'top' }, error ? { borderColor: color.peligro } : null]}
       />
       {error ? <Text style={estilos.error}>{error}</Text> : ayuda ? <Text style={estilos.ayuda}>{ayuda}</Text> : null}
@@ -253,7 +261,7 @@ export function Selector<T extends string>({
               style={[estilos.ficha, activa && estilos.fichaActiva]}
             >
               <Text style={[estilos.textoFicha, activa && { color: '#FFFFFF' }]}>{o.etiqueta}</Text>
-              {o.detalle ? <Text style={[estilos.detalleFicha, activa && { color: '#E6F3EC' }]}>{o.detalle}</Text> : null}
+              {o.detalle ? <Text style={[estilos.detalleFicha, activa && { color: color.primarioSuave }]}>{o.detalle}</Text> : null}
             </Pressable>
           );
         })}

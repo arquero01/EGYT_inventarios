@@ -1,0 +1,26 @@
+{
+  "name": "@egt/desktop",
+  "productName": "EGT Inventario",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Aplicación de escritorio de eg&t: el computador guarda los datos y sirve el panel y la app.",
+  "author": "eg&t",
+  "main": "dist/main.js",
+  "scripts": {
+    "compilar": "node empaquetar.mjs",
+    "start": "node empaquetar.mjs && electron .",
+    "instalador": "node empaquetar.mjs && electron-builder --win --publish never",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@egt/api": "workspace:*",
+    "@egt/domain": "workspace:*",
+    "@types/node": "^26.6.6",
+    "electron": "^45.2.3",
+    "electron-builder": "^26.18.0",
+    "esbuild": "^0.28.2",
+    "typescript": "~5.9.3"
+  }
+}

@@ -1,0 +1,36 @@
+# Instalador de Windows de la aplicación de escritorio.
+appId: co.egt.inventario.escritorio
+productName: EGT Inventario
+executableName: EGT-Inventario
+copyright: eg&t
+directories:
+  output: release
+  buildResources: build
+files:
+  - dist/**/*
+  - package.json
+extraResources:
+  - from: ../web/dist
+    to: panel
+# Sin asar: PGlite lee sus archivos .wasm directamente del disco.
+asar: false
+npmRebuild: false
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  icon: build/icon.png
+  artifactName: EGT-Inventario-${version}-instalador.${ext}
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: always
+  createStartMenuShortcut: true
+  shortcutName: EGT Inventario
+  uninstallDisplayName: EGT Inventario
+  # Al desinstalar NO se borran los datos (quedan en %APPDATA%\EGT Inventario).
+  deleteAppDataOnUninstall: false
+linux:
+  target: [dir]
+  icon: build/icon.png

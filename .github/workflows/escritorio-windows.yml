@@ -1,0 +1,81 @@
+# Arma el instalador de Windows de la aplicación de escritorio cada vez que
+# cambia el servidor, el panel o la aplicación de escritorio. Queda en:
+#   - Releases → "Aplicación de escritorio para Windows"
+#   - Actions → la ejecución → Artifacts
+name: Escritorio Windows
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/desktop/**"
+      - "apps/api/**"
+      - "apps/web/**"
+      - "packages/domain/**"
+      - "pnpm-lock.yaml"
+      - ".github/workflows/escritorio-windows.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: escritorio-windows
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  instalador:
+    name: Armar instalador
+    runs-on: windows-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Descargar el código
+        uses: actions/checkout@v4
+
+      - name: Instalar pnpm (versión de package.json)
+        uses: pnpm/action-setup@v4
+
+      - name: Instalar Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Instalar dependencias
+        run: pnpm install --frozen-lockfile
+
+      - name: Revisar tipos
+        run: |
+          pnpm --filter @egt/desktop typecheck
+          pnpm --filter @egt/web typecheck
+
+      - name: Compilar el panel web
+        run: pnpm --filter @egt/web build
+
+      - name: Armar el instalador
+        working-directory: apps/desktop
+        run: pnpm instalador
+
+      - name: Renombrar el instalador
+        run: cp apps/desktop/release/EGT-Inventario-*-instalador.exe EGT-Inventario-instalador.exe
+
+      - name: Guardar como artefacto
+        uses: actions/upload-artifact@v4
+        with:
+          name: egt-inventario-windows
+          path: EGT-Inventario-instalador.exe
+          if-no-files-found: error
+
+      - name: Publicar en Releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete escritorio-ultima --yes --cleanup-tag || true
+          gh release create escritorio-ultima EGT-Inventario-instalador.exe \
+            --title "Aplicación de escritorio para Windows" \
+            --notes "Armada automáticamente desde el commit ${GITHUB_SHA::7}. Descargue el instalador, ábralo y siga los pasos. Si Windows muestra «Windows protegió su PC», toque «Más información» y luego «Ejecutar de todas formas»." \
+            --prerelease \
+            --target "$GITHUB_SHA"

@@ -5,3 +5,4 @@ export * from './utilidades.ts';
 export * from './estados.ts';
 export * from './ubicaciones.ts';
 export * from './comandos.ts';
+export * from './usuarios.ts';

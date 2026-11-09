@@ -7,10 +7,16 @@
     "node": ">=22"
   },
   "scripts": {
-    "dev": "pnpm --filter @egt/api dev",
-    "build": "pnpm --filter @egt/api build",
+    "dev": "pnpm --filter @egt/web build && pnpm --filter @egt/api dev",
+    "dev:web": "pnpm --filter @egt/web dev",
+    "build:web": "pnpm --filter @egt/web build",
+    "build": "pnpm --filter @egt/web build && pnpm --filter @egt/api build",
+    "start": "pnpm --filter @egt/api start",
     "migrate": "pnpm --filter @egt/api migrate",
     "test": "pnpm -r test",
-    "typecheck": "pnpm -r typecheck"
+    "typecheck": "pnpm -r typecheck",
+    "dev:api": "pnpm --filter @egt/api dev",
+    "escritorio": "pnpm --filter @egt/web build && pnpm --filter @egt/desktop start",
+    "respaldo": "pnpm --filter @egt/api respaldo"
   }
 }
