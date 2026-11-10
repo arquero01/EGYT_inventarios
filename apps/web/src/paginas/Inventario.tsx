@@ -6,11 +6,12 @@ import type { BodegaEnLista, ListaEquipos, ProyectoEnLista } from '../tipos.ts';
 import { Aviso, BotonEnlace, FilaVinculada, InsigniaEstado, Lectura, Lista, Pagina, Paginacion, Vacio } from '../ui/componentes.tsx';
 import { Icono } from '../ui/iconos.tsx';
 
-const FILTROS = ['q', 'tipo', 'estado', 'ubicacion', 'bodegaId', 'proyectoId', 'zona', 'pendientes', 'sinProyecto', 'garantia', 'pagina'] as const;
+const FILTROS = ['q', 'tipo', 'estado', 'ubicacion', 'bodegaId', 'proyectoId', 'zona', 'pendientes', 'verificar', 'sinProyecto', 'garantia', 'pagina'] as const;
 
 /** Filtros de revisión: cada opción es un parámetro distinto de la consulta. */
 const REVISION = [
   { valor: 'pendientes', etiqueta: 'Con datos por completar', param: 'pendientes', dato: 'si' },
+  { valor: 'verificar', etiqueta: 'Celdas de color por verificar', param: 'verificar', dato: 'si' },
   { valor: 'sinProyecto', etiqueta: 'Sin proyecto asignado', param: 'sinProyecto', dato: 'si' },
   { valor: 'POR_VENCER', etiqueta: 'Garantía por vencer (30 días)', param: 'garantia', dato: 'POR_VENCER' },
   { valor: 'VENCIDA', etiqueta: 'Garantía vencida', param: 'garantia', dato: 'VENCIDA' },

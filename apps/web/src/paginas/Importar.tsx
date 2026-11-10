@@ -2,6 +2,7 @@ import { useRef, useState, type DragEvent } from 'react';
 import { Link } from 'react-router';
 import { FalloApi, enviarComando, nuevoId } from '../api.ts';
 import { useLectura } from '../ganchos.ts';
+import { leerColores } from '../colores.ts';
 import { esFormatoHistorico } from '../historico.ts';
 import { COLUMNAS, MAXIMO_FILAS, leerCsv, leerHoja, type Celda, type FilaImportacion, type ResultadoLectura } from '../importacion.ts';
 import { ImportarHistorico, type HojaArchivo } from './ImportarHistorico.tsx';
@@ -110,7 +111,9 @@ export function Importar() {
         // El archivo de inventario de la empresa tiene su propio lector.
         const deEmpresa = hojas.filter((h) => esFormatoHistorico(h.data as unknown as Celda[][]));
         if (deEmpresa.length > 0) {
-          setHistorico(deEmpresa.map((h) => ({ nombre: h.sheet, datos: h.data as unknown as Celda[][] })));
+          // Las celdas pintadas (amarillo, rojo…) son datos que la empresa marcó para rectificar.
+          const colores = leerColores(new Uint8Array(await f.arrayBuffer()));
+          setHistorico(deEmpresa.map((h) => ({ nombre: h.sheet, datos: h.data as unknown as Celda[][], colores: colores.get(h.sheet) })));
           return;
         }
         // La primera hoja con encabezados reconocibles (la plantilla trae otras).

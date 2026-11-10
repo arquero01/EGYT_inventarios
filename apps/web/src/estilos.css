@@ -1645,3 +1645,66 @@ textarea {
   justify-content: space-between;
   gap: 12px;
 }
+
+/* ── Editar datos de un equipo ───────────────────────────────────────── */
+.grupo-edicion {
+  display: grid;
+  gap: 14px;
+  margin: 0;
+  padding: 14px 16px 16px;
+  border: 1px solid var(--linea);
+  border-radius: 10px;
+  min-width: 0;
+}
+
+.grupo-edicion legend {
+  padding: 0 6px;
+  font-weight: 700;
+}
+
+.grupo-edicion > p {
+  margin: 0;
+  font-size: var(--t-s);
+}
+
+.casillas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.casillas label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border: 1px solid var(--linea);
+  border-radius: 999px;
+  font-size: var(--t-s);
+  cursor: pointer;
+}
+
+.casillas label.verificar {
+  border-color: #f0d199;
+  background: #fff8e8;
+}
+
+button.enlace {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--azul);
+  font: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.resumen-historico .cifra.atencion b {
+  color: var(--atencion-tinta);
+}
+
+.texto-verificar {
+  color: var(--atencion-tinta);
+  font-weight: 600;
+}

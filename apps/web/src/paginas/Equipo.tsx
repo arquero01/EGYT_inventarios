@@ -6,6 +6,7 @@ import { cantidad, fecha, fechaHora, hoy, pesos } from '../formato.ts';
 import { useEsAdmin, useFormulario, useLectura, useSesion } from '../ganchos.ts';
 import { NOMBRE_ACCION } from '../nombres.ts';
 import type { HojaDeVida, Instalacion, ProyectoEnLista } from '../tipos.ts';
+import { EditarEquipo } from './EditarEquipo.tsx';
 import { Area, Aviso, Boton, BotonEnlace, Cajon, Campo, Datos, ErrorFormulario, InsigniaEstado, Lectura, Lista, Pagina, Seccion } from '../ui/componentes.tsx';
 
 /** RF-16 (hoja de vida) y RF-17 (historial), con las acciones que permite su estado. */
@@ -15,6 +16,7 @@ export function Equipo() {
   const esAdmin = useEsAdmin();
   const [accion, setAccion] = useState<Accion | null>(null);
   const [hecho, setHecho] = useState<string | null>(null);
+  const [editando, setEditando] = useState(false);
 
   return (
     <Lectura estado={hoja}>
@@ -24,6 +26,8 @@ export function Equipo() {
         const origen = e.ubicacion === 'BODEGA' ? `bodegaId=${e.bodega?.id ?? ''}` : `proyectoId=${d.proyecto?.id ?? ''}`;
         const nombreAccion = (a: Accion) => (a === 'CAMBIAR_PROYECTO' && !d.proyecto ? 'Asignar proyecto' : NOMBRE_ACCION[a]);
         const instalacion = d.instalacionActual;
+        // Corregir datos: administradores; de baja, solo los que vinieron del histórico (RF-15).
+        const puedeEditar = esAdmin && (e.estado !== 'DADO_DE_BAJA' || d.historial.some((h) => h.tipo === 'IMPORTACION'));
         return (
           <Pagina
             titulo={<span className="serial">{e.serial}</span>}
@@ -35,8 +39,16 @@ export function Equipo() {
             {e.estado === 'DADO_DE_BAJA' ? <Aviso tipo="info">Este equipo está dado de baja: su registro ya no se puede modificar (RF-15).</Aviso> : null}
             {e.pendientes.length > 0 ? (
               <Aviso tipo="atencion">
-                Equipo importado del inventario histórico. <b>Por completar:</b> {e.pendientes.join(', ')}.
+                Equipo importado del inventario histórico. <b>Por completar o verificar:</b> {e.pendientes.join(', ')}.
                 {!d.proyecto && e.estado !== 'DADO_DE_BAJA' ? ' Use «Asignar proyecto» para ubicarlo en uno.' : ''}
+                {puedeEditar ? (
+                  <>
+                    {' '}
+                    <button type="button" className="enlace" onClick={() => setEditando(true)}>
+                      Completar o corregir datos
+                    </button>
+                  </>
+                ) : null}
               </Aviso>
             ) : null}
 
@@ -69,9 +81,14 @@ export function Equipo() {
               />
             </div>
 
-            {acciones.length > 0 || e.movimientosPosibles.length > 0 ? (
+            {acciones.length > 0 || e.movimientosPosibles.length > 0 || puedeEditar ? (
               <Seccion titulo="Qué se puede hacer">
                 <div className="acciones">
+                  {puedeEditar ? (
+                    <Boton variante="secundario" icono="lapiz" onClick={() => setEditando(true)}>
+                      Editar datos
+                    </Boton>
+                  ) : null}
                   {acciones.map((a) => (
                     <Boton key={a} variante={a === 'DAR_DE_BAJA' ? 'peligro' : a === 'INSTALAR' ? 'primario' : 'secundario'} onClick={() => setAccion(a)}>
                       {nombreAccion(a)}
@@ -118,6 +135,18 @@ export function Equipo() {
                 </Seccion>
               ) : null}
             </div>
+
+            {editando ? (
+              <EditarEquipo
+                hoja={d}
+                alCerrar={() => setEditando(false)}
+                alTerminar={(m) => {
+                  setEditando(false);
+                  setHecho(m);
+                  hoja.recargar();
+                }}
+              />
+            ) : null}
 
             {accion ? (
               <FormularioAccion

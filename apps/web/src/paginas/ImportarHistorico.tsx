@@ -1,9 +1,9 @@
 import { NOMBRE_ESTADO, type EstadoEquipo } from '@egt/domain';
 import { useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router';
-import { FalloApi, enviarComandoConResultado } from '../api.ts';
+import { FalloApi, enviarComando, enviarComandoConResultado } from '../api.ts';
 import { useEsAdmin, useLectura } from '../ganchos.ts';
-import { TITULOS_HISTORICO, leerHistorico, type ClaveHistorico, type FilaHistorico } from '../historico.ts';
+import { TITULOS_HISTORICO, idFijo, leerHistorico, type ClaveHistorico, type FilaHistorico } from '../historico.ts';
 import type { Celda } from '../importacion.ts';
 import type { BodegaEnLista } from '../tipos.ts';
 import { Aviso, Boton, Insignia, InsigniaEstado, Lista, Seccion } from '../ui/componentes.tsx';
@@ -11,6 +11,8 @@ import { Aviso, Boton, Insignia, InsigniaEstado, Lista, Seccion } from '../ui/co
 export interface HojaArchivo {
   nombre: string;
   datos: Celda[][];
+  /** Colores de relleno por fila (de Excel, desde 1) y columna. */
+  colores?: Map<number, Map<number, string>> | undefined;
 }
 
 type Estado =
@@ -39,7 +41,7 @@ export function ImportarHistorico({ archivo, hojas }: { archivo: string; hojas: 
   const ordenadas = useMemo(
     () =>
       hojas
-        .map((h) => ({ ...h, equipos: leerHistorico(h.datos, { hoja: h.nombre }).filas.length }))
+        .map((h) => ({ ...h, equipos: leerHistorico(h.datos, { hoja: h.nombre, colores: h.colores }).filas.length }))
         .sort((a, b) => b.equipos - a.equipos),
     [hojas],
   );
@@ -47,11 +49,11 @@ export function ImportarHistorico({ archivo, hojas }: { archivo: string; hojas: 
   const [bodegaId, setBodegaId] = useState('');
   const [estados, setEstados] = useState<Record<number, Estado>>({});
   const [importando, setImportando] = useState(false);
-  const [filtro, setFiltro] = useState<'todas' | 'errores' | 'pendientes'>('todas');
+  const [filtro, setFiltro] = useState<'todas' | 'errores' | 'pendientes' | 'verificar'>('todas');
 
   const hoja = ordenadas.find((h) => h.nombre === nombreHoja) ?? ordenadas[0];
   const lectura = useMemo(
-    () => (hoja ? leerHistorico(hoja.datos, { hoja: hoja.nombre, bodegaId: bodegaId || undefined }) : null),
+    () => (hoja ? leerHistorico(hoja.datos, { hoja: hoja.nombre, bodegaId: bodegaId || undefined, colores: hoja.colores }) : null),
     [hoja, bodegaId],
   );
 
@@ -76,6 +78,17 @@ export function ImportarHistorico({ archivo, hojas }: { archivo: string; hojas: 
     try {
       // El id sale del contenido de la fila: reimportar el mismo archivo no duplica nada.
       const { respuesta: r, duplicado } = await enviarComandoConResultado('IMPORTAR_HISTORICO', f.comando!.payload, f.comando!.id);
+      // Ya estaba importado (de una versión que no leía los colores): se le suman las celdas por verificar.
+      if (duplicado && f.verificar.length > 0) {
+        await enviarComando(
+          'EDITAR_EQUIPO',
+          { equipoId: f.comando!.payload.equipoId, agregarPendientes: f.verificar, motivo: 'Celdas de color en el archivo' },
+          idFijo(`${f.comando!.id}|verificar`),
+        ).catch((e: unknown) => {
+          // EDIT-02: ya los tenía. Otro error no impide dar la fila por importada.
+          if (!(e instanceof FalloApi)) throw e;
+        });
+      }
       setEstados((x) => ({
         ...x,
         [f.fila]: duplicado ? { estado: 'existe' } : { estado: 'ok', equipoId: String(f.comando!.payload.equipoId), serial: String(r.serial ?? f.vista.codigo) },
@@ -112,14 +125,14 @@ export function ImportarHistorico({ archivo, hojas }: { archivo: string; hojas: 
 
   const descargarReporte = async () => {
     const { default: escribir } = await import('write-excel-file/browser');
-    const filas = lectura.filas.filter((f) => !f.comando || estados[f.fila]?.estado === 'error' || f.pendientes.length > 0);
+    const filas = lectura.filas.filter((f) => !f.comando || estados[f.fila]?.estado === 'error' || f.pendientes.length > 0 || f.verificar.length > 0);
     await escribir(
       [
         [
           { value: 'Fila', ...ENCABEZADO },
           ...COLUMNAS_REPORTE.map((c) => ({ value: TITULOS_HISTORICO[c], ...ENCABEZADO })),
           { value: 'Error', ...ENCABEZADO },
-          { value: 'Por completar', ...ENCABEZADO },
+          { value: 'Por verificar o completar', ...ENCABEZADO },
         ],
         ...filas.map((f) => {
           const e = estados[f.fila];
@@ -128,7 +141,7 @@ export function ImportarHistorico({ archivo, hojas }: { archivo: string; hojas: 
             f.fila,
             ...COLUMNAS_REPORTE.map((c) => f.originales[c] ?? ''),
             { value: error, color: '#B3261E' },
-            f.pendientes.join(', '),
+            [...f.verificar, ...f.pendientes].join(', '),
           ];
         }),
       ],
@@ -141,7 +154,13 @@ export function ImportarHistorico({ archivo, hojas }: { archivo: string; hojas: 
   };
 
   const visibles = lectura.filas.filter((f) =>
-    filtro === 'errores' ? !f.comando || estados[f.fila]?.estado === 'error' : filtro === 'pendientes' ? f.comando && f.pendientes.length > 0 : true,
+    filtro === 'errores'
+      ? !f.comando || estados[f.fila]?.estado === 'error'
+      : filtro === 'pendientes'
+        ? f.comando && f.pendientes.length > 0
+        : filtro === 'verificar'
+          ? f.verificar.length > 0
+          : true,
   );
 
   return (
@@ -150,7 +169,8 @@ export function ImportarHistorico({ archivo, hojas }: { archivo: string; hojas: 
         <Aviso tipo="info">
           Se reconoció el formato del inventario de la empresa en <b>{archivo}</b>. Cada equipo entra en el estado en que está hoy: con su usuario
           (cédula, nombre, NIU y fecha de entrega), y el <b>centro de costos queda como zona</b>. El código interno (EG&amp;T-…) pasa a ser su identificador.
-          El proyecto y los datos que no estén en el archivo quedan marcados <b>«por completar»</b>.
+          El proyecto y los datos que no estén en el archivo quedan marcados <b>«por completar»</b>, y las <b>celdas pintadas</b> (amarillo,
+          rojo, verde…) quedan <b>«por verificar»</b>.
         </Aviso>
         {!esAdmin ? <Aviso tipo="error">Solo un administrador puede importar el inventario histórico. Pídale a un administrador que lo haga.</Aviso> : null}
 
@@ -197,6 +217,12 @@ export function ImportarHistorico({ archivo, hojas }: { archivo: string; hojas: 
             <b className="num">{lectura.resumen.conPendientes.toLocaleString('es-CO')}</b>
             <span>con datos por completar</span>
           </div>
+          {lectura.resumen.porVerificar > 0 ? (
+            <div className="cifra atencion">
+              <b className="num">{lectura.resumen.porVerificar.toLocaleString('es-CO')}</b>
+              <span>con celdas de color (por verificar)</span>
+            </div>
+          ) : null}
           {conErrores.length > 0 ? (
             <div className="cifra peligro">
               <b className="num">{conErrores.length}</b>
@@ -262,6 +288,7 @@ export function ImportarHistorico({ archivo, hojas }: { archivo: string; hojas: 
             [
               ['todas', `Todas (${lectura.filas.length})`],
               ['pendientes', `Por completar (${lectura.resumen.conPendientes})`],
+              ...(lectura.resumen.porVerificar > 0 ? ([['verificar', `Celdas de color (${lectura.resumen.porVerificar})`]] as const) : []),
               ['errores', `Con errores (${conErrores.length + fallidos.length})`],
             ] as const
           ).map(([valor, etiqueta]) => (
@@ -328,6 +355,7 @@ export function ImportarHistorico({ archivo, hojas }: { archivo: string; hojas: 
                           ) : f.vista.estado ? (
                             <Insignia clase={f.vista.estado}>{NOMBRE_ESTADO[f.vista.estado]}</Insignia>
                           ) : null}
+                          {f.verificar.length > 0 ? <span className="secundaria texto-verificar">{f.verificar.join(' · ')}</span> : null}
                           {f.pendientes.length > 0 ? <span className="secundaria">Por completar: {f.pendientes.join(', ')}</span> : null}
                         </>
                       )}

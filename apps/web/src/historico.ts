@@ -82,6 +82,8 @@ export interface FilaHistorico {
   originales: Partial<Record<ClaveHistorico, string>>;
   comando: { id: string; payload: Record<string, unknown> } | null;
   pendientes: string[];
+  /** "Verificar (amarillo): Nombre": celdas pintadas en el archivo. */
+  verificar: string[];
   errores: string[];
 }
 
@@ -95,6 +97,8 @@ export interface ResultadoHistorico {
     conPendientes: number;
     /** Filas "disponibles" que necesitan una bodega. */
     enStock: number;
+    /** Filas con celdas de color (datos que la empresa marcó para rectificar). */
+    porVerificar: number;
   };
 }
 
@@ -303,11 +307,43 @@ export function estadoDe(notas: string[], conUsuario: boolean): { estado: Estado
 
 // ── Lectura ────────────────────────────────────────────────────────────────
 
-export function leerHistorico(datos: Celda[][], contexto: { hoja: string; bodegaId?: string | undefined }): ResultadoHistorico {
-  const vacio = { porEstado: {}, porZona: [], conPendientes: 0, enStock: 0 };
+/** Columnas pintadas a partir de las cuales se entiende que toda la fila está marcada. */
+const COLUMNAS_FILA_COMPLETA = 6;
+
+/**
+ * Datos "por verificar" de una fila según el color de sus celdas: la empresa
+ * pinta de amarillo, rojo, verde… lo que hay que rectificar.
+ */
+export function verificarPorColor(
+  todas: Map<number, string> | undefined,
+  columnas: Map<ClaveHistorico, number>,
+  ultimaColumna = Number.POSITIVE_INFINITY,
+): string[] {
+  // Solo cuentan las celdas dentro de la tabla (a veces hay celdas pintadas más a la derecha).
+  const colores = new Map([...(todas ?? new Map<number, string>()).entries()].filter(([j]) => j <= ultimaColumna));
+  if (colores.size === 0) return [];
+  if (colores.size >= COLUMNAS_FILA_COMPLETA) {
+    const conteo = new Map<string, number>();
+    for (const c of colores.values()) conteo.set(c, (conteo.get(c) ?? 0) + 1);
+    const color = [...conteo.entries()].sort((a, b) => b[1] - a[1])[0]![0];
+    return [`Verificar (${color}): toda la fila`];
+  }
+  const nombrePorColumna = new Map([...columnas.entries()].map(([clave, j]) => [j, TITULOS_HISTORICO[clave]]));
+  return [...colores.entries()]
+    .sort((a, b) => a[0] - b[0])
+    .filter(([j]) => nombrePorColumna.has(j))
+    .map(([j, color]) => `Verificar (${color}): ${nombrePorColumna.get(j)}`);
+}
+
+export function leerHistorico(
+  datos: Celda[][],
+  contexto: { hoja: string; bodegaId?: string | undefined; colores?: Map<number, Map<number, string>> | undefined },
+): ResultadoHistorico {
+  const vacio = { porEstado: {}, porZona: [], conPendientes: 0, enStock: 0, porVerificar: 0 };
   const indice = encabezadosHistorico(datos);
   if (indice < 0) return { filas: [], problemas: ['La hoja no tiene los encabezados del formato de la empresa (CÓDIGO INTERNO, TIPO DE EQUIPO, CENTRO DE COSTOS…).'], resumen: vacio };
   const columnas = columnasDe(datos[indice]!);
+  const ultimaColumna = (datos[indice] ?? []).reduce<number>((u, celda, j) => (texto(celda) !== '' ? j : u), 0);
   const claves = [...columnas.keys()];
 
   const filas: FilaHistorico[] = [];
@@ -359,6 +395,7 @@ export function leerHistorico(datos: Celda[][], contexto: { hoja: string; bodega
     const originales = Object.fromEntries(claves.map((c) => [c, texto(valor(c))])) as Partial<Record<ClaveHistorico, string>>;
     const errores: string[] = [];
     const pendientes: string[] = ['Proyecto'];
+    const verificar = verificarPorColor(contexto.colores?.get(numeroFila), columnas, ultimaColumna);
     const notas: string[] = [];
 
     // Código interno: un identificador sin espacios. Si en la celda hay una nota, se guarda como nota.
@@ -463,7 +500,7 @@ export function leerHistorico(datos: Celda[][], contexto: { hoja: string; bodega
       ...(cedula ? { usuario: { cedula, ...(nombre ? { nombre } : {}), ...(niu ? { niu } : {}) } } : {}),
       ...(fechaEntrega && cedula ? { fechaEntrega } : {}),
       ...(observaciones.length > 0 ? { motivo: observaciones.join(' · ').slice(0, 500) } : {}),
-      pendientes,
+      pendientes: [...pendientes, ...verificar],
     };
 
     const id = idFijo(`${semilla}|comando`);
@@ -485,6 +522,7 @@ export function leerHistorico(datos: Celda[][], contexto: { hoja: string; bodega
       originales,
       comando: errores.length === 0 && v.valido ? { id, payload: v.comando.payload as Record<string, unknown> } : null,
       pendientes: pendientes.filter((p) => p !== 'Proyecto'),
+      verificar,
       errores,
     });
   }
@@ -506,6 +544,7 @@ export function leerHistorico(datos: Celda[][], contexto: { hoja: string; bodega
       porEstado,
       porZona: [...zonas.entries()].sort((a, b) => b[1] - a[1]),
       conPendientes: listas.filter((f) => f.pendientes.length > 0).length,
+      porVerificar: listas.filter((f) => f.verificar.length > 0).length,
       enStock: filas.filter((f) => f.vista.estado === 'EN_STOCK').length,
     },
   };

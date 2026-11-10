@@ -27,6 +27,7 @@ import {
   type FilaEquipo,
   type Manejador,
 } from './comunes.ts';
+import { editarEquipo } from './edicion.ts';
 import { importarHistorico } from './historico.ts';
 import { MANEJADORES_LOGISTICA } from './logistica.ts';
 
@@ -262,5 +263,6 @@ export const MANEJADORES: { [T in TipoComando]: Manejador<T> } = {
   FINALIZAR_MANTENIMIENTO: finalizarMantenimiento,
   DAR_DE_BAJA: darDeBaja,
   IMPORTAR_HISTORICO: importarHistorico,
+  EDITAR_EQUIPO: editarEquipo,
   ...MANEJADORES_LOGISTICA,
 };

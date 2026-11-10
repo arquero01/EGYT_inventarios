@@ -28,6 +28,8 @@ export interface FiltrosEquipos {
   garantia?: EstadoGarantia | undefined;
   /** true: solo equipos del histórico a los que les faltan datos. */
   pendientes?: boolean | undefined;
+  /** true: solo equipos con celdas de color en el archivo ("Verificar …") sin revisar. */
+  verificar?: boolean | undefined;
   /** true: solo equipos sin proyecto asignado. */
   sinProyecto?: boolean | undefined;
   q?: string | undefined;
@@ -72,6 +74,7 @@ function condiciones(f: FiltrosEquipos): SQL | undefined {
   if (f.zona) lista.push(sql`${sinTildes(equipos.zona)} = ${normalizarBusqueda(f.zona)}`);
   if (f.pendientes) lista.push(sql`cardinality(${equipos.pendientes}) > 0`);
   if (f.sinProyecto) lista.push(isNull(equipos.proyectoId));
+  if (f.verificar) lista.push(sql`EXISTS (SELECT 1 FROM unnest(${equipos.pendientes}) AS p WHERE p LIKE 'Verificar%')`);
   if (f.garantia) {
     const hoy = fechaColombia();
     const limite = sumarDias(hoy, DIAS_AVISO_GARANTIA);

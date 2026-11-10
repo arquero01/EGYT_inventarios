@@ -85,6 +85,7 @@ const filtrosEquipos = z.object({
   garantia: z.enum(ESTADOS_GARANTIA, { error: `Debe ser ${ESTADOS_GARANTIA.join(', ')}` }).optional(),
   pendientes: z.enum(['si', 'no']).optional().transform((v) => v === 'si'),
   sinProyecto: z.enum(['si', 'no']).optional().transform((v) => v === 'si'),
+  verificar: z.enum(['si', 'no']).optional().transform((v) => v === 'si'),
   q: z.string().optional(),
   pagina: z.coerce.number().int().min(1).default(1),
   porPagina: z.coerce.number().int().min(1).max(100).default(20),

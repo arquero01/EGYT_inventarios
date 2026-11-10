@@ -6,6 +6,7 @@ import { leerCola, leerSesion, refrescarCuenta, sincronizar } from './src/api/cl
 import { Navegacion } from './src/navegacion.tsx';
 import { PuertaDeEntrada } from './src/pantallas/Cuenta.tsx';
 import { useSesion } from './src/ui/ganchos.ts';
+import { ProteccionErrores } from './src/ui/ProteccionErrores.tsx';
 import { color } from './src/ui/tema.ts';
 
 const CADA_MS = 30_000;
@@ -44,7 +45,9 @@ export default function App() {
       ) : sesion === null ? (
         <PuertaDeEntrada />
       ) : (
-        <Navegacion />
+        <ProteccionErrores>
+          <Navegacion />
+        </ProteccionErrores>
       )}
     </SafeAreaProvider>
   );

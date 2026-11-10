@@ -15,7 +15,7 @@ type DatosCompraHistorica = NonNullable<ComandoDe<'IMPORTAR_HISTORICO'>['payload
  * La factura del histórico se identifica por proveedor + número (no hay NIT).
  * Si no hay proveedor, el equipo queda sin compra (y "Proveedor" pendiente).
  */
-async function compraHistorica(tx: Transaccion, datos: DatosCompraHistorica | undefined): Promise<string | null> {
+export async function compraHistorica(tx: Transaccion, datos: DatosCompraHistorica | undefined): Promise<string | null> {
   if (!datos?.proveedor) return null;
   const nit = datos.nit ? normalizarNit(datos.nit) : null;
   const factura = datos.numeroFactura?.toUpperCase().replace(/\s+/g, ' ') ?? null;

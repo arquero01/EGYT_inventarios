@@ -196,6 +196,101 @@ export const importarHistorico = z
     }
   });
 
+// ── Corrección de datos de un equipo ──────────────────────────────────────
+
+/** Texto que se puede borrar: vacío o null deja el campo vacío; ausente, no lo cambia. */
+const textoEditable = (max: number) =>
+  z
+    .string()
+    .trim()
+    .max(max, `Máximo ${max} caracteres`)
+    .nullable()
+    .optional()
+    .transform((v) => (v === '' ? null : v));
+const numeroEditable = z.number({ error: 'Debe ser un número' }).positive('Debe ser mayor a cero').nullable().optional();
+
+/**
+ * Corrige los datos de un equipo ya registrado (errores del archivo, datos
+ * que estaban "por completar"). No cambia su estado ni su ubicación: para eso
+ * están las acciones y las guías. Cada corrección queda en el historial con el
+ * valor anterior y el nuevo. Solo la puede hacer un administrador.
+ */
+export const editarEquipo = z
+  .object({
+    equipoId: id,
+    /** Nuevo serial o código interno (identificador). */
+    serial: textoOpcional(80),
+    serialFabricante: textoEditable(80),
+    tipo: z.enum(TIPOS_EQUIPO, { error: 'Tipo de equipo no permitido' }).optional(),
+    marca: textoEditable(80),
+    modelo: textoEditable(80),
+    descripcion: textoEditable(300),
+    potencia: numeroEditable,
+    unidad: z.enum(UNIDADES_CAPACIDAD, { error: `Unidad no permitida (${UNIDADES_CAPACIDAD.join(', ')})` }).nullable().optional(),
+    zona: textoEditable(120),
+    garantiaHasta: z.string().refine(esFechaValida, 'Debe ser una fecha válida con formato AAAA-MM-DD').nullable().optional(),
+    valorPagado: numeroEditable,
+    /** null quita la compra del equipo. La factura se comparte entre equipos: se busca o se crea otra. */
+    compra: z
+      .object({
+        proveedor: texto(150),
+        nit: z
+          .string()
+          .trim()
+          .nullable()
+          .optional()
+          .refine((v) => !v || normalizarNit(v) !== null, 'NIT inválido (solo dígitos; si incluye dígito de verificación, debe ser correcto)')
+          .transform((v) => (v ? v : null)),
+        numeroFactura: z
+          .string()
+          .trim()
+          .nullable()
+          .optional()
+          .refine((v) => !v || /^[A-Za-z0-9][A-Za-z0-9 ./-]{0,29}$/.test(v), 'Número de factura inválido (máximo 30 caracteres)')
+          .transform((v) => (v ? v : null)),
+        fechaCompra: z
+          .string()
+          .nullable()
+          .optional()
+          .refine((f) => !f || (esFechaValida(f) && !esFechaFutura(f)), 'Debe ser una fecha válida y no futura')
+          .transform((v) => (v ? v : null)),
+      })
+      .nullable()
+      .optional(),
+    /** Usuario final de la instalación (vigente o la última). Otra cédula cambia de persona. */
+    usuario: z
+      .object({
+        cedula: digitos(5, 12, 'La cédula'),
+        nombre: textoOpcional(150),
+        telefono: z.preprocess(
+          (v) => (typeof v === 'string' ? v.replace(/[\s.-]/g, '') : v),
+          z
+            .string()
+            .regex(/^(\d{10})?$/, 'El teléfono debe tener 10 dígitos')
+            .nullable()
+            .optional()
+            .transform((v) => (v ? v : v === '' ? null : v)),
+        ),
+        niu: textoEditable(30),
+      })
+      .optional(),
+    fechaEntrega: fechaPasadaOpcional,
+    /** Lista de datos por completar o por verificar que queda después de corregir. */
+    pendientes: z.array(z.string().trim().min(1).max(80)).max(30).optional(),
+    /** Datos que se suman a la lista sin quitar los que ya tiene (p. ej. celdas de color al reimportar). */
+    agregarPendientes: z.array(z.string().trim().min(1).max(80)).max(30).optional(),
+    /** Por qué se corrige (queda en el historial). */
+    motivo: textoOpcional(300),
+  })
+  .superRefine((d, ctx) => {
+    if (d.serial && normalizarSerial(d.serial).startsWith('EGT-')) {
+      ctx.addIssue({ code: 'custom', path: ['serial'], message: 'El prefijo EGT- está reservado para seriales asignados por el sistema' });
+    }
+    if (typeof d.potencia === 'number' && d.unidad === null) {
+      ctx.addIssue({ code: 'custom', path: ['unidad'], message: 'Indique la unidad de la potencia' });
+    }
+  });
+
 /** RF-03 */
 export const cambiarProyecto = z.object({
   equipoId: id,
@@ -341,6 +436,7 @@ export const DEFINICION_COMANDOS = {
   CREAR_PROYECTO: { schema: crearProyecto, codigo: 'RF-01' },
   REGISTRAR_INGRESO: { schema: registrarIngreso, codigo: 'RF-06' },
   IMPORTAR_HISTORICO: { schema: importarHistorico, codigo: 'IMP-01' },
+  EDITAR_EQUIPO: { schema: editarEquipo, codigo: 'EDIT-01' },
   CAMBIAR_PROYECTO: { schema: cambiarProyecto, codigo: 'RF-03' },
   INSTALAR_EQUIPO: { schema: instalarEquipo, codigo: 'RF-11' },
   RETIRAR_EQUIPO: { schema: retirarEquipo, codigo: 'RF-13' },

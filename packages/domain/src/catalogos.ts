@@ -73,6 +73,7 @@ export const TIPOS_EVENTO = [
   'TRASLADO',
   'DEVOLUCION',
   'IMPORTACION',
+  'EDICION',
 ] as const;
 export type TipoEvento = (typeof TIPOS_EVENTO)[number];
 

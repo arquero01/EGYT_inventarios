@@ -48,6 +48,10 @@ export const MENSAJES = {
 
   // Importación del histórico (propio).
   'IMP-01': 'Error de validación: revise los datos del equipo en el archivo.',
+  'EDIT-01': 'Error de validación: revise los datos del equipo.',
+  'EDIT-02': 'No hay cambios para guardar.',
+  'EDIT-03': 'Este equipo está dado de baja: solo se pueden corregir los datos de los equipos que vinieron del inventario histórico.',
+  'EDIT-04': 'Un equipo en stock no tiene usuario: para entregárselo a alguien use «Instalar».',
 
   // Cuentas de usuario (propio).
   'AUTH-01': 'Error: Correo o contraseña incorrectos.',

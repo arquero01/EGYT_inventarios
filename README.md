@@ -45,6 +45,19 @@ Lo que falta o viene como `PENDIENTE`, `PDTE…`, `En Espera`, `#N/D` o `-` qued
 
 No se importan las filas sin tipo de equipo, con un tipo que no existe en el sistema (por ejemplo «CABLE SOLAR») o con un código interno repetido en el archivo: **Descargar filas por revisar** las entrega con el motivo, junto con las que quedaron con datos por completar. Volver a subir el mismo archivo no duplica nada: el panel reconoce las filas que ya se guardaron. Con el archivo de prueba (2.094 filas) se importaron 2.073 equipos en unos 35 segundos.
 
+**Celdas de color.** Las celdas pintadas en el archivo (amarillo, rojo, verde, naranja…) quedan en el equipo como «por verificar», por ejemplo *Verificar (amarillo): Nombre*; si casi toda la fila está pintada, *Verificar (rojo): toda la fila*. No cuentan el blanco ni los tintes casi blancos que trae el formato de la hoja, ni las celdas pintadas fuera de la tabla. Si el archivo ya se había importado antes, al subirlo de nuevo solo se agregan esas marcas a los equipos que ya estaban. En **Equipos → Revisión → Celdas de color por verificar** salen todos.
+
+## Editar los datos de un equipo
+
+En la hoja de vida del equipo, **Editar datos** (solo administradores) permite corregir lo que vino mal del Excel o completar lo que faltaba: código o serial, serial del fabricante, tipo, marca, modelo, potencia, descripción, zona, fin de garantía, compra (proveedor, NIT, factura, fecha, valor) y usuario final (cédula, nombre, teléfono, NIU, fecha de entrega).
+
+- Cada cambio queda en el **historial** con el valor anterior y el nuevo, quién lo hizo y el motivo.
+- Lo que se llena se quita solo de «por completar». Los «Verificar…» se quitan desmarcándolos cuando ya se revisaron.
+- La factura la comparten varios equipos: corregirla en uno no cambia la de los demás.
+- Una cédula distinta cambia la persona a la que se entregó; a un equipo que venía sin usuario se le registra la entrega.
+- El estado y la ubicación no se editan aquí: se cambian con las acciones (instalar, mantenimiento…) y las guías.
+- Un equipo dado de baja sigue sin poder modificarse (RF-15), salvo los que vinieron del histórico, para corregir sus datos (no su estado).
+
 ## Aplicación de escritorio (Windows)
 
 Con la aplicación de escritorio, **el computador de la oficina hace de servidor**: guarda los datos, muestra el panel en su propia ventana y los celulares se conectan a él por el WiFi. No depende de Codespaces ni de internet.
