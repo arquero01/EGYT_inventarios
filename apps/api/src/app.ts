@@ -7,6 +7,7 @@ import {
   ESTADOS_EQUIPO,
   ErrorDominio,
   MENSAJES,
+  TIPOS_ENTREGA,
   TIPOS_EQUIPO,
   TIPOS_MOVIMIENTO,
   UBICACIONES,
@@ -43,7 +44,7 @@ export const ESTADO_HTTP = {
 
 /** Lo que se ve en "/" si el panel todavía no se ha compilado. */
 const PANEL_SIN_COMPILAR = `<!doctype html><html lang="es"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>eg&amp;t Inventario</title>
+<title>EG&amp;T Inventario</title>
 <body style="font-family:system-ui,sans-serif;background:#f2f7fc;color:#0f2236;padding:40px 20px">
 <div style="max-width:560px;margin:auto;background:#fff;border:1px solid #d3dee9;border-radius:8px;padding:28px">
 <h1 style="margin-top:0;font-size:24px">El servidor está funcionando</h1>
@@ -86,6 +87,7 @@ const filtrosEquipos = z.object({
   pendientes: z.enum(['si', 'no']).optional().transform((v) => v === 'si'),
   sinProyecto: z.enum(['si', 'no']).optional().transform((v) => v === 'si'),
   verificar: z.enum(['si', 'no']).optional().transform((v) => v === 'si'),
+  entrega: z.enum(TIPOS_ENTREGA, { error: `Debe ser ${TIPOS_ENTREGA.join(', ')}` }).optional(),
   q: z.string().optional(),
   pagina: z.coerce.number().int().min(1).default(1),
   porPagina: z.coerce.number().int().min(1).max(100).default(20),

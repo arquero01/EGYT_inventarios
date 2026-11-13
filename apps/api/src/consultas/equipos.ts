@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, isNotNull, isNull, or, sql, type SQL } from 'drizzle-orm';
+import { and, asc, count, desc, eq, inArray, isNotNull, isNull, ne, or, sql, type SQL } from 'drizzle-orm';
 import {
   MENSAJES,
   NOMBRE_ESTADO,
@@ -12,6 +12,7 @@ import {
   type CodigoMensaje,
   type EstadoEquipo,
   type MovimientoEquipo,
+  type TipoEntrega,
   type TipoEquipo,
   type Ubicacion,
 } from '@egt/domain';
@@ -30,6 +31,8 @@ export interface FiltrosEquipos {
   pendientes?: boolean | undefined;
   /** true: solo equipos con celdas de color en el archivo ("Verificar …") sin revisar. */
   verificar?: boolean | undefined;
+  /** Solo los entregados de esa forma (p. ej. REPOSICION), en su instalación actual o en una anterior. */
+  entrega?: TipoEntrega | undefined;
   /** true: solo equipos sin proyecto asignado. */
   sinProyecto?: boolean | undefined;
   q?: string | undefined;
@@ -74,6 +77,9 @@ function condiciones(f: FiltrosEquipos): SQL | undefined {
   if (f.zona) lista.push(sql`${sinTildes(equipos.zona)} = ${normalizarBusqueda(f.zona)}`);
   if (f.pendientes) lista.push(sql`cardinality(${equipos.pendientes}) > 0`);
   if (f.sinProyecto) lista.push(isNull(equipos.proyectoId));
+  if (f.entrega) {
+    lista.push(sql`EXISTS (SELECT 1 FROM instalaciones ie WHERE ie.equipo_id = "equipos"."id" AND ie.tipo_entrega = ${f.entrega})`);
+  }
   if (f.verificar) lista.push(sql`EXISTS (SELECT 1 FROM unnest(${equipos.pendientes}) AS p WHERE p LIKE 'Verificar%')`);
   if (f.garantia) {
     const hoy = fechaColombia();
@@ -162,6 +168,7 @@ export async function listarEquipos(db: Ejecutor, f: FiltrosEquipos) {
       usuarioId: usuariosFinales.id,
       usuarioNombre: usuariosFinales.nombre,
       usuarioCedula: usuariosFinales.cedula,
+      tipoEntrega: instalaciones.tipoEntrega,
     })
     .from(equipos)
     .leftJoin(proyectos, eq(proyectos.id, equipos.proyectoId))
@@ -194,6 +201,8 @@ export async function listarEquipos(db: Ejecutor, f: FiltrosEquipos) {
       bodega: e.bodegaId ? { id: e.bodegaId, nombre: e.bodegaNombre } : null,
       proyecto: e.proyectoId ? { id: e.proyectoId, nombre: e.proyectoNombre } : null,
       usuarioFinal: e.usuarioId ? { id: e.usuarioId, nombre: e.usuarioNombre, cedula: e.usuarioCedula } : null,
+      /** Cómo se entregó en su instalación actual (null si no está instalado). */
+      tipoEntrega: e.tipoEntrega ?? null,
     })),
     paginacion: {
       pagina: f.pagina,
@@ -236,8 +245,45 @@ export async function hojaDeVida(db: Ejecutor, idOSerial: string) {
     .where(eq(eventosEquipo.equipoId, equipo.id))
     .orderBy(asc(eventosEquipo.rev));
 
+  // Reposiciones registradas en el sistema: a quién reemplazó este equipo y quién lo reemplazó a él.
+  const relacionados = [
+    ...new Set([...historialInstalaciones.map((h) => h.instalacion.reemplazaEquipoId).filter((x): x is string => x !== null)]),
+  ];
+  const reemplazos = await db
+    .select({ equipoId: instalaciones.equipoId, serial: equipos.serial, fecha: instalaciones.fechaInstalacion })
+    .from(instalaciones)
+    .innerJoin(equipos, eq(equipos.id, instalaciones.equipoId))
+    .where(eq(instalaciones.reemplazaEquipoId, equipo.id));
+  const serialesRelacionados = relacionados.length
+    ? await db.select({ id: equipos.id, serial: equipos.serial }).from(equipos).where(inArray(equipos.id, relacionados))
+    : [];
+
+  // Otros equipos entregados al mismo usuario (sirve para ver cuál falló y cuál lo reemplazó en el histórico).
+  const ultimo = historialInstalaciones.find((h) => h.instalacion.vigente) ?? historialInstalaciones[0];
+  const otrosDelUsuario = ultimo
+    ? await db
+        .select({
+          id: equipos.id,
+          serial: equipos.serial,
+          tipo: equipos.tipo,
+          estado: equipos.estado,
+          vigente: instalaciones.vigente,
+          tipoEntrega: instalaciones.tipoEntrega,
+          fechaInstalacion: instalaciones.fechaInstalacion,
+        })
+        .from(instalaciones)
+        .innerJoin(equipos, eq(equipos.id, instalaciones.equipoId))
+        .where(and(eq(instalaciones.usuarioFinalId, ultimo.usuario.id), ne(instalaciones.equipoId, equipo.id)))
+        .orderBy(desc(instalaciones.fechaInstalacion))
+        .limit(30)
+    : [];
+
   const aInstalacion = ({ instalacion: i, usuario: u }: (typeof historialInstalaciones)[number]) => ({
     id: i.id,
+    tipoEntrega: i.tipoEntrega,
+    reemplazaA: i.reemplazaEquipoId
+      ? { id: i.reemplazaEquipoId, serial: serialesRelacionados.find((x) => x.id === i.reemplazaEquipoId)?.serial ?? '' }
+      : null,
     usuarioFinal: { id: u.id, nombre: u.nombre, cedula: u.cedula, telefono: u.telefono, niu: u.niu },
     ubicacion: { vereda: i.vereda, municipio: i.municipio, departamento: i.departamento },
     fechaInstalacion: i.fechaInstalacion,
@@ -298,6 +344,13 @@ export async function hojaDeVida(db: Ejecutor, idOSerial: string) {
       : null,
     valorPagado: equipo.valorPagado,
     instalacionActual: vigente ? aInstalacion(vigente) : null,
+    /** Equipos que llegaron a reemplazar a este (si se cambió por falla). */
+    reemplazadoPor: reemplazos.map((r) => ({ id: r.equipoId, serial: r.serial, fecha: r.fecha })),
+    otrosDelUsuario: otrosDelUsuario.map((o) => ({
+      ...o,
+      tipoNombre: NOMBRE_TIPO_EQUIPO[o.tipo],
+      estadoNombre: NOMBRE_ESTADO[o.estado],
+    })),
     instalacionesAnteriores: historialInstalaciones.filter((h) => !h.instalacion.vigente).map(aInstalacion),
     historial: historial.map((ev) => ({
       id: ev.id,

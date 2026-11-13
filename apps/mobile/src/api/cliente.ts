@@ -386,6 +386,7 @@ export const NOMBRE_COMANDO: Record<TipoComando, string> = {
   REGISTRAR_INGRESO: 'Ingreso de equipo',
   IMPORTAR_HISTORICO: 'Importación del histórico',
   EDITAR_EQUIPO: 'Corrección de datos',
+  REPONER_EQUIPO: 'Reposición por falla',
   CAMBIAR_PROYECTO: 'Cambio de proyecto',
   INSTALAR_EQUIPO: 'Instalación',
   RETIRAR_EQUIPO: 'Retiro',

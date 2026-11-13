@@ -19,6 +19,7 @@ const TRAZOS = {
   info: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 11v5M12 8h.01',
   listo: 'M20 6 9 17l-5-5',
   lapiz: 'M4 20h4L19 9l-4-4L4 16zM13.5 6.5l4 4',
+  intercambio: 'M4 8h13l-3-3M20 16H7l3 3',
   imprimir: 'M7 9V3h10v6M7 18H5a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2M7 14h10v7H7z',
 } as const;
 

@@ -66,6 +66,9 @@ export interface ListaEquipos {
 export interface Instalacion {
   id: string;
   usuarioFinal: { id: string; nombre: string; cedula: string; telefono: string | null; niu?: string | null };
+  /** ENTREGA, REPOSICION (reemplazó a uno con fallas) o PARTICULAR. */
+  tipoEntrega?: 'ENTREGA' | 'REPOSICION' | 'PARTICULAR';
+  reemplazaA?: { id: string; serial: string } | null;
   ubicacion: { vereda: string | null; municipio: string | null; departamento: string | null };
   fechaInstalacion: string;
   tecnico: string | null;

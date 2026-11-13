@@ -47,6 +47,14 @@ No se importan las filas sin tipo de equipo, con un tipo que no existe en el sis
 
 **Celdas de color.** Las celdas pintadas en el archivo (amarillo, rojo, verde, naranja…) quedan en el equipo como «por verificar», por ejemplo *Verificar (amarillo): Nombre*; si casi toda la fila está pintada, *Verificar (rojo): toda la fila*. No cuentan el blanco ni los tintes casi blancos que trae el formato de la hoja, ni las celdas pintadas fuera de la tabla. Si el archivo ya se había importado antes, al subirlo de nuevo solo se agregan esas marcas a los equipos que ya estaban. En **Equipos → Revisión → Celdas de color por verificar** salen todos.
 
+## Reposición
+
+Una **reposición** es cuando a un usuario se le cambia el equipo que presentó fallas (casi siempre una batería) por otro.
+
+- **En el sistema:** en la hoja de vida de un equipo instalado, **Reponer por falla**. Se elige el equipo nuevo entre los que están en stock (del mismo tipo; en baterías, gel o litio), la falla, la fecha y el técnico. El que falla pasa a mantenimiento o garantía (o de baja si no tiene arreglo) y queda en campo hasta que una guía de devolución lo lleve a bodega; el nuevo queda instalado al mismo usuario y en el mismo lugar, marcado como *Reposición*. Los dos quedan enlazados: el nuevo dice a cuál reemplazó y el viejo, quién lo reemplazó.
+- **Desde el Excel:** la columna *ESTADO (REP, PART, DISPONIBLE)* con `REPOSICIÓN` marca la entrega como reposición (y `PARTICULAR`, como particular). Los equipos que ya se habían importado se marcan solos al actualizar el sistema, sin volver a importar.
+- En **Equipos → Revisión → Entregados como reposición** salen todos, y la hoja de vida muestra **Otros equipos de este usuario** para ver cuál falló y cuál lo reemplazó.
+
 ## Editar los datos de un equipo
 
 En la hoja de vida del equipo, **Editar datos** (solo administradores) permite corregir lo que vino mal del Excel o completar lo que faltaba: código o serial, serial del fabricante, tipo, marca, modelo, potencia, descripción, zona, fin de garantía, compra (proveedor, NIT, factura, fecha, valor) y usuario final (cédula, nombre, teléfono, NIU, fecha de entrega).
@@ -75,7 +83,7 @@ Con la aplicación de escritorio, **el computador de la oficina hace de servidor
 - Si la dirección del computador cambia cada día, pida en el router una **IP fija** (reserva DHCP) para ese computador.
 
 **Datos y copias de seguridad**
-- Los datos quedan en `%APPDATA%\EGT Inventario\datos` y **no se borran al desinstalar**.
+- Los datos quedan en `%APPDATA%\EGT Inventario\datos` y **no se borran al desinstalar**. (La aplicación se llama *EG&T Inventario*, pero la carpeta de datos conserva el nombre sin «&» para no perder lo ya guardado.)
 - **Archivo → Guardar copia de seguridad…** genera un `.tar.gz`. Guárdelo también fuera del computador (USB, Drive).
 - **Archivo → Restaurar copia de seguridad…** reemplaza los datos por los de una copia; los anteriores quedan en una carpeta aparte.
 

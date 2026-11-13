@@ -93,6 +93,8 @@ describe('Archivo de inventario de la empresa', () => {
       valorPagado: 1303407,
       usuario: { cedula: '12345678', nombre: 'PERSONA DE PRUEBA UNO', niu: '86320513' },
       fechaEntrega: '2025-09-10',
+      // ESTADO = REPOSICIÓN: reemplazó a un equipo con fallas.
+      tipoEntrega: 'REPOSICION',
     });
     // El serial igual al código no se repite; "PENDIENTE" y "En Espera" no son datos.
     expect(f.comando?.payload.serialFabricante).toBeUndefined();
@@ -100,6 +102,11 @@ describe('Archivo de inventario de la empresa', () => {
     expect(f.pendientes).toEqual(['Marca', 'Fin de garantía']);
     expect(f.comando?.payload.pendientes).toContain('Proyecto');
     expect(r.resumen.porEstado).toEqual({ INSTALADO: 1 });
+    expect(r.resumen.reposiciones).toBe(1);
+    // PARTICULAR también se reconoce; sin usuario no hay entrega que marcar.
+    const otros = leer([{ ...base, codigo: 'P-1', estado: 'PARTICULAR' }, { ...base, codigo: 'P-2', cedula: null }]);
+    expect(otros.filas[0]!.comando?.payload.tipoEntrega).toBe('PARTICULAR');
+    expect(otros.filas[1]!.comando?.payload.tipoEntrega).toBeUndefined();
   });
 
   it('lee el estado de las notas: perdidos, disposición final, garantía y disponibles', () => {

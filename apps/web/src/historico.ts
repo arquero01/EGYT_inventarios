@@ -99,6 +99,8 @@ export interface ResultadoHistorico {
     enStock: number;
     /** Filas con celdas de color (datos que la empresa marcó para rectificar). */
     porVerificar: number;
+    /** Entregados como reposición (ESTADO = REPOSICIÓN: reemplazaron a uno con fallas). */
+    reposiciones: number;
   };
 }
 
@@ -339,7 +341,7 @@ export function leerHistorico(
   datos: Celda[][],
   contexto: { hoja: string; bodegaId?: string | undefined; colores?: Map<number, Map<number, string>> | undefined },
 ): ResultadoHistorico {
-  const vacio = { porEstado: {}, porZona: [], conPendientes: 0, enStock: 0, porVerificar: 0 };
+  const vacio = { porEstado: {}, porZona: [], conPendientes: 0, enStock: 0, porVerificar: 0, reposiciones: 0 };
   const indice = encabezadosHistorico(datos);
   if (indice < 0) return { filas: [], problemas: ['La hoja no tiene los encabezados del formato de la empresa (CÓDIGO INTERNO, TIPO DE EQUIPO, CENTRO DE COSTOS…).'], resumen: vacio };
   const columnas = columnasDe(datos[indice]!);
@@ -464,6 +466,8 @@ export function leerHistorico(
     if (fechaEntrega && fechaEntrega > hoyStr) fechaEntrega = null;
 
     const estadoTexto = limpio(valor('estado'), 60);
+    // REP = reposición (reemplazó a un equipo con fallas); PART = particular.
+    const tipoEntrega = /^rep(osici|\b|$)/.test(normalizar(estadoTexto)) ? 'REPOSICION' : /^part/.test(normalizar(estadoTexto)) ? 'PARTICULAR' : undefined;
     const devuelto = limpio(valor('devuelto'), 60);
     const estadoGarantia = limpio(valor('estadoGarantia'), 60);
     const { estado, motivo } = estadoDe([estadoTexto, devuelto, estadoGarantia.match(/disp/i) ? estadoGarantia : '', ...notas], Boolean(cedula));
@@ -497,6 +501,7 @@ export function leerHistorico(
       ...(valorPagado !== undefined ? { valorPagado } : {}),
       ...(garantia ? { garantiaHasta: garantia } : {}),
       estado,
+      ...(tipoEntrega && cedula ? { tipoEntrega } : {}),
       ...(cedula ? { usuario: { cedula, ...(nombre ? { nombre } : {}), ...(niu ? { niu } : {}) } } : {}),
       ...(fechaEntrega && cedula ? { fechaEntrega } : {}),
       ...(observaciones.length > 0 ? { motivo: observaciones.join(' · ').slice(0, 500) } : {}),
@@ -545,6 +550,7 @@ export function leerHistorico(
       porZona: [...zonas.entries()].sort((a, b) => b[1] - a[1]),
       conPendientes: listas.filter((f) => f.pendientes.length > 0).length,
       porVerificar: listas.filter((f) => f.verificar.length > 0).length,
+      reposiciones: listas.filter((f) => f.comando!.payload.tipoEntrega === 'REPOSICION').length,
       enStock: filas.filter((f) => f.vista.estado === 'EN_STOCK').length,
     },
   };

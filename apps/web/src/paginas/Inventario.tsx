@@ -6,7 +6,7 @@ import type { BodegaEnLista, ListaEquipos, ProyectoEnLista } from '../tipos.ts';
 import { Aviso, BotonEnlace, FilaVinculada, InsigniaEstado, Lectura, Lista, Pagina, Paginacion, Vacio } from '../ui/componentes.tsx';
 import { Icono } from '../ui/iconos.tsx';
 
-const FILTROS = ['q', 'tipo', 'estado', 'ubicacion', 'bodegaId', 'proyectoId', 'zona', 'pendientes', 'verificar', 'sinProyecto', 'garantia', 'pagina'] as const;
+const FILTROS = ['q', 'tipo', 'estado', 'ubicacion', 'bodegaId', 'proyectoId', 'zona', 'pendientes', 'verificar', 'sinProyecto', 'garantia', 'entrega', 'pagina'] as const;
 
 /** Filtros de revisión: cada opción es un parámetro distinto de la consulta. */
 const REVISION = [
@@ -15,6 +15,7 @@ const REVISION = [
   { valor: 'sinProyecto', etiqueta: 'Sin proyecto asignado', param: 'sinProyecto', dato: 'si' },
   { valor: 'POR_VENCER', etiqueta: 'Garantía por vencer (30 días)', param: 'garantia', dato: 'POR_VENCER' },
   { valor: 'VENCIDA', etiqueta: 'Garantía vencida', param: 'garantia', dato: 'VENCIDA' },
+  { valor: 'REPOSICION', etiqueta: 'Entregados como reposición', param: 'entrega', dato: 'REPOSICION' },
 ] as const;
 
 /** RF-18 a RF-21: búsqueda por serial, usuario o cédula y filtros combinables. */
@@ -189,6 +190,8 @@ export function Inventario() {
                               <>
                                 {e.usuarioFinal.nombre}
                                 <span className="secundaria num">C.C. {e.usuarioFinal.cedula}</span>
+                                {e.tipoEntrega === 'REPOSICION' ? <span className="etiqueta-entrega">Reposición</span> : null}
+                                {e.tipoEntrega === 'PARTICULAR' ? <span className="etiqueta-entrega">Particular</span> : null}
                               </>
                             ) : (
                               <span className="suave">—</span>

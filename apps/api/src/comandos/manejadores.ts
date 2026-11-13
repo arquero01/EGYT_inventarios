@@ -28,6 +28,7 @@ import {
   type Manejador,
 } from './comunes.ts';
 import { editarEquipo } from './edicion.ts';
+import { reponerEquipo } from './reposicion.ts';
 import { importarHistorico } from './historico.ts';
 import { MANEJADORES_LOGISTICA } from './logistica.ts';
 
@@ -264,5 +265,6 @@ export const MANEJADORES: { [T in TipoComando]: Manejador<T> } = {
   DAR_DE_BAJA: darDeBaja,
   IMPORTAR_HISTORICO: importarHistorico,
   EDITAR_EQUIPO: editarEquipo,
+  REPONER_EQUIPO: reponerEquipo,
   ...MANEJADORES_LOGISTICA,
 };

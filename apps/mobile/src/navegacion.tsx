@@ -81,10 +81,10 @@ function PestanasPrincipales() {
         name="Inicio"
         component={Inicio}
         options={{
-          title: 'eg&t Inventario',
+          title: 'EG&T Inventario',
           tabBarLabel: 'Inicio',
           // El logo va tal cual sobre el azul noche, igual que en el panel web.
-          headerTitle: () => <Image source={LOGO} style={{ width: 78, height: 36 }} resizeMode="contain" accessibilityLabel="eg&t Inventario" />,
+          headerTitle: () => <Image source={LOGO} style={{ width: 78, height: 36 }} resizeMode="contain" accessibilityLabel="EG&T Inventario" />,
         }}
       />
       <Tab.Screen name="Inventario" component={Inventario} />

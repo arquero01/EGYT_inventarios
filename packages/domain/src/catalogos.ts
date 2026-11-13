@@ -60,6 +60,19 @@ export type UnidadCapacidad = (typeof UNIDADES_CAPACIDAD)[number];
 export const ORIGENES_SERIAL = ['PROVEEDOR', 'EMPRESA', 'INTERNO'] as const;
 export type OrigenSerial = (typeof ORIGENES_SERIAL)[number];
 
+/**
+ * Cómo se le entregó el equipo al usuario. REPOSICION: reemplaza a otro que
+ * presentó fallas (casi siempre una batería). PARTICULAR: entrega a un
+ * cliente particular (columna "ESTADO (REP, PART…)" del archivo de la empresa).
+ */
+export const TIPOS_ENTREGA = ['ENTREGA', 'REPOSICION', 'PARTICULAR'] as const;
+export type TipoEntrega = (typeof TIPOS_ENTREGA)[number];
+export const NOMBRE_TIPO_ENTREGA: Record<TipoEntrega, string> = {
+  ENTREGA: 'Primera entrega',
+  REPOSICION: 'Reposición',
+  PARTICULAR: 'Particular',
+};
+
 /** RF-17: tipos de evento del historial. */
 export const TIPOS_EVENTO = [
   'INGRESO',
@@ -74,6 +87,7 @@ export const TIPOS_EVENTO = [
   'DEVOLUCION',
   'IMPORTACION',
   'EDICION',
+  'REPOSICION',
 ] as const;
 export type TipoEvento = (typeof TIPOS_EVENTO)[number];
 

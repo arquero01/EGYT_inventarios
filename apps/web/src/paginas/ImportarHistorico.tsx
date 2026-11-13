@@ -217,6 +217,12 @@ export function ImportarHistorico({ archivo, hojas }: { archivo: string; hojas: 
             <b className="num">{lectura.resumen.conPendientes.toLocaleString('es-CO')}</b>
             <span>con datos por completar</span>
           </div>
+          {lectura.resumen.reposiciones > 0 ? (
+            <div className="cifra">
+              <b className="num">{lectura.resumen.reposiciones.toLocaleString('es-CO')}</b>
+              <span>entregados como reposición (reemplazaron a uno con fallas)</span>
+            </div>
+          ) : null}
           {lectura.resumen.porVerificar > 0 ? (
             <div className="cifra atencion">
               <b className="num">{lectura.resumen.porVerificar.toLocaleString('es-CO')}</b>

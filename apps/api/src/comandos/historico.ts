@@ -113,6 +113,7 @@ export const importarHistorico: Manejador<'IMPORTAR_HISTORICO'> = async (tx, c) 
       vigente,
       finalizadaEn: vigente ? null : new Date(c.ocurridoEn),
       motivoFin: vigente ? null : (p.motivo ?? `Estado al importar: ${NOMBRE_ESTADO[p.estado]}`),
+      tipoEntrega: p.tipoEntrega ?? 'ENTREGA',
     });
   }
 

@@ -10,7 +10,7 @@ const ENCENDIDAS = new Set([3, 4, 5, 10, 11, 17]);
 
 function Puerta({ titulo, descripcion, children }: { titulo: string; descripcion: string; children: ReactNode }) {
   useEffect(() => {
-    document.title = `${titulo} | eg&t Inventario`;
+    document.title = `${titulo} | EG&T Inventario`;
   }, [titulo]);
   return (
     <div className="puerta">

@@ -3,6 +3,7 @@ import type {
   EstadoEquipo,
   MovimientoEquipo,
   OrigenSerial,
+  TipoEntrega,
   TipoEquipo,
   TipoMovimiento,
   Ubicacion,
@@ -69,6 +70,8 @@ export interface EquipoEnLista {
   bodega: { id: string; nombre: string } | null;
   /** null en equipos del histórico que todavía no tienen proyecto. */
   proyecto: { id: string; nombre: string } | null;
+  /** Cómo se entregó en su instalación actual. */
+  tipoEntrega: TipoEntrega | null;
   usuarioFinal: { id: string; nombre: string; cedula: string } | null;
 }
 
@@ -80,6 +83,9 @@ export interface ListaEquipos {
 
 export interface Instalacion {
   id: string;
+  tipoEntrega: TipoEntrega;
+  /** Equipo al que reemplazó (reposición registrada en el sistema). */
+  reemplazaA: { id: string; serial: string } | null;
   usuarioFinal: { id: string; nombre: string; cedula: string; telefono: string | null; niu: string | null };
   ubicacion: { vereda: string | null; municipio: string | null; departamento: string | null };
   fechaInstalacion: string;
@@ -119,6 +125,20 @@ export interface HojaDeVida {
   valorPagado: number | null;
   instalacionActual: Instalacion | null;
   instalacionesAnteriores: Instalacion[];
+  /** Equipos que reemplazaron a este por falla. */
+  reemplazadoPor: { id: string; serial: string; fecha: string }[];
+  /** Otros equipos entregados al mismo usuario. */
+  otrosDelUsuario: {
+    id: string;
+    serial: string;
+    tipo: TipoEquipo;
+    tipoNombre: string;
+    estado: EstadoEquipo;
+    estadoNombre: string;
+    vigente: boolean;
+    tipoEntrega: TipoEntrega;
+    fechaInstalacion: string;
+  }[];
   historial: {
     id: string;
     tipo: string;

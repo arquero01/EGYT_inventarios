@@ -1,12 +1,13 @@
-import { useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { Link, useParams } from 'react-router';
-import { NOMBRE_MOVIMIENTO, NOMBRE_ESTADO, type Accion, type TipoComando } from '@egt/domain';
+import { NOMBRE_MOVIMIENTO, NOMBRE_ESTADO, NOMBRE_TIPO_ENTREGA, type Accion, type TipoComando } from '@egt/domain';
 import { nuevoId } from '../api.ts';
 import { cantidad, fecha, fechaHora, hoy, pesos } from '../formato.ts';
 import { useEsAdmin, useFormulario, useLectura, useSesion } from '../ganchos.ts';
 import { NOMBRE_ACCION } from '../nombres.ts';
 import type { HojaDeVida, Instalacion, ProyectoEnLista } from '../tipos.ts';
 import { EditarEquipo } from './EditarEquipo.tsx';
+import { ReponerEquipo } from './ReponerEquipo.tsx';
 import { Area, Aviso, Boton, BotonEnlace, Cajon, Campo, Datos, ErrorFormulario, InsigniaEstado, Lectura, Lista, Pagina, Seccion } from '../ui/componentes.tsx';
 
 /** RF-16 (hoja de vida) y RF-17 (historial), con las acciones que permite su estado. */
@@ -16,7 +17,10 @@ export function Equipo() {
   const esAdmin = useEsAdmin();
   const [accion, setAccion] = useState<Accion | null>(null);
   const [hecho, setHecho] = useState<string | null>(null);
+  // Al pasar a otro equipo (p. ej. desde un enlace) se limpia el aviso del anterior.
+  useEffect(() => setHecho(null), [id]);
   const [editando, setEditando] = useState(false);
+  const [reponiendo, setReponiendo] = useState(false);
 
   return (
     <Lectura estado={hoja}>
@@ -37,6 +41,21 @@ export function Equipo() {
           >
             {hecho ? <Aviso tipo="exito">{hecho}</Aviso> : null}
             {e.estado === 'DADO_DE_BAJA' ? <Aviso tipo="info">Este equipo está dado de baja: su registro ya no se puede modificar (RF-15).</Aviso> : null}
+            {d.reemplazadoPor.length > 0 ? (
+              <Aviso tipo="info">
+                Este equipo se le cambió al usuario por falla. Lo reemplazó{' '}
+                {d.reemplazadoPor.map((r, i) => (
+                  <span key={r.id}>
+                    {i > 0 ? ', ' : ''}
+                    <Link className="serial" to={`/equipos/${r.id}`}>
+                      {r.serial}
+                    </Link>{' '}
+                    el {fecha(r.fecha)}
+                  </span>
+                ))}
+                .
+              </Aviso>
+            ) : null}
             {e.pendientes.length > 0 ? (
               <Aviso tipo="atencion">
                 Equipo importado del inventario histórico. <b>Por completar o verificar:</b> {e.pendientes.join(', ')}.
@@ -81,12 +100,17 @@ export function Equipo() {
               />
             </div>
 
-            {acciones.length > 0 || e.movimientosPosibles.length > 0 || puedeEditar ? (
+            {acciones.length > 0 || e.movimientosPosibles.length > 0 || puedeEditar || (e.estado === 'INSTALADO' && d.instalacionActual) ? (
               <Seccion titulo="Qué se puede hacer">
                 <div className="acciones">
                   {puedeEditar ? (
                     <Boton variante="secundario" icono="lapiz" onClick={() => setEditando(true)}>
                       Editar datos
+                    </Boton>
+                  ) : null}
+                  {e.estado === 'INSTALADO' && d.instalacionActual ? (
+                    <Boton variante="secundario" icono="intercambio" onClick={() => setReponiendo(true)}>
+                      Reponer por falla
                     </Boton>
                   ) : null}
                   {acciones.map((a) => (
@@ -125,16 +149,51 @@ export function Equipo() {
                   </ol>
                 </Seccion>
               </div>
-              {d.instalacionesAnteriores.length > 0 ? (
-                <Seccion titulo="Instalaciones anteriores">
-                  <div className="formulario">
-                    {d.instalacionesAnteriores.map((i) => (
-                      <TarjetaInstalacion key={i.id} i={i} />
-                    ))}
-                  </div>
-                </Seccion>
-              ) : null}
+              <div>
+                {d.otrosDelUsuario.length > 0 ? (
+                  <Seccion titulo="Otros equipos de este usuario">
+                    <ul className="lista superficie lista-otros">
+                      {d.otrosDelUsuario.map((o) => (
+                        <li key={o.id}>
+                          <div>
+                            <Link className="serial" to={`/equipos/${o.id}`}>
+                              {o.serial}
+                            </Link>
+                            <span className="secundaria">
+                              {o.tipoNombre} · entregado el {fecha(o.fechaInstalacion)}
+                              {o.tipoEntrega !== 'ENTREGA' ? ` · ${NOMBRE_TIPO_ENTREGA[o.tipoEntrega].toLowerCase()}` : ''}
+                              {o.vigente ? '' : ' · ya no lo tiene'}
+                            </span>
+                          </div>
+                          <InsigniaEstado estado={o.estado} />
+                        </li>
+                      ))}
+                    </ul>
+                  </Seccion>
+                ) : null}
+                {d.instalacionesAnteriores.length > 0 ? (
+                  <Seccion titulo="Instalaciones anteriores">
+                    <div className="formulario">
+                      {d.instalacionesAnteriores.map((i) => (
+                        <TarjetaInstalacion key={i.id} i={i} />
+                      ))}
+                    </div>
+                  </Seccion>
+                ) : null}
+              </div>
             </div>
+
+            {reponiendo ? (
+              <ReponerEquipo
+                hoja={d}
+                alCerrar={() => setReponiendo(false)}
+                alTerminar={(m) => {
+                  setReponiendo(false);
+                  setHecho(m);
+                  hoja.recargar();
+                }}
+              />
+            ) : null}
 
             {editando ? (
               <EditarEquipo
@@ -196,6 +255,26 @@ function TarjetaInstalacion({ i }: { i: Instalacion }) {
       <Datos
         pares={[
           ['Usuario final', i.usuarioFinal.nombre],
+          [
+            'Entrega',
+            i.tipoEntrega === 'REPOSICION' ? (
+              <>
+                <span className="etiqueta-entrega">Reposición</span>{' '}
+                {i.reemplazaA ? (
+                  <>
+                    reemplazó a{' '}
+                    <Link className="serial" to={`/equipos/${i.reemplazaA.id}`}>
+                      {i.reemplazaA.serial}
+                    </Link>
+                  </>
+                ) : (
+                  'reemplazó a un equipo con fallas'
+                )}
+              </>
+            ) : (
+              NOMBRE_TIPO_ENTREGA[i.tipoEntrega]
+            ),
+          ],
           ['Cédula', <span className="num">{i.usuarioFinal.cedula}</span>],
           ...(i.usuarioFinal.niu ? ([['NIU', <span className="num">{i.usuarioFinal.niu}</span>]] as [string, ReactNode][]) : []),
           ['Teléfono', i.usuarioFinal.telefono ? <span className="num">{i.usuarioFinal.telefono}</span> : <PorCompletar />],

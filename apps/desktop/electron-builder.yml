@@ -27,8 +27,11 @@ nsis:
   allowToChangeInstallationDirectory: true
   createDesktopShortcut: always
   createStartMenuShortcut: true
-  shortcutName: EGT Inventario
-  uninstallDisplayName: EGT Inventario
+  # Nombre visible (acceso directo, menú Inicio, "Agregar o quitar programas").
+  # productName sigue siendo "EGT Inventario" a propósito: de él sale la carpeta
+  # de datos (%APPDATA%\EGT Inventario); si cambiara, la aplicación arrancaría vacía.
+  shortcutName: EG&T Inventario
+  uninstallDisplayName: EG&T Inventario
   # Al desinstalar NO se borran los datos (quedan en %APPDATA%\EGT Inventario).
   deleteAppDataOnUninstall: false
 linux:

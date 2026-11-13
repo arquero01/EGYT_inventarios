@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import {
   ESTADOS_EQUIPO,
+  TIPOS_ENTREGA,
   TIPOS_EQUIPO,
   UNIDADES_CAPACIDAD,
   UNIDADES_MEDIDA,
@@ -181,6 +182,8 @@ export const importarHistorico = z
     fechaEntrega: fechaPasadaOpcional,
     /** Estado y observaciones tal como venían en el archivo. */
     motivo: textoOpcional(500),
+    /** Cómo se le entregó al usuario (REPOSICIÓN en el archivo = reemplazó a uno con fallas). */
+    tipoEntrega: z.enum(TIPOS_ENTREGA, { error: 'Tipo de entrega no permitido' }).optional(),
     /** Datos que faltaban en el archivo ("Proyecto", "NIT del proveedor"…). */
     pendientes: z.array(z.string().trim().min(1).max(60)).max(20).default([]),
   })
@@ -195,6 +198,26 @@ export const importarHistorico = z
       ctx.addIssue({ code: 'custom', path: ['codigoInterno'], message: 'El prefijo EGT- está reservado para seriales asignados por el sistema' });
     }
   });
+
+// ── Reposición ─────────────────────────────────────────────────────────────
+
+/**
+ * Cambiar a un usuario el equipo que falló (casi siempre una batería) por
+ * otro que está en stock. El que se retira va a mantenimiento (garantía) o de
+ * baja; el nuevo queda instalado al mismo usuario como "reposición" y los dos
+ * quedan enlazados en su hoja de vida.
+ */
+export const reponerEquipo = z
+  .object({
+    equipoRetiradoId: id,
+    equipoNuevoId: id,
+    instalacionId: id,
+    destino: z.enum(['MANTENIMIENTO', 'BAJA'], { error: 'Indique si el equipo retirado va a mantenimiento o de baja' }),
+    motivo: z.string({ error: OBLIGATORIO }).trim().min(5, 'Describa la falla (al menos 5 caracteres)').max(500, 'Máximo 500 caracteres'),
+    fecha: fechaPasada,
+    tecnico: texto(150),
+  })
+  .refine((d) => d.equipoRetiradoId !== d.equipoNuevoId, { path: ['equipoNuevoId'], message: 'Debe ser otro equipo' });
 
 // ── Corrección de datos de un equipo ──────────────────────────────────────
 
@@ -437,6 +460,7 @@ export const DEFINICION_COMANDOS = {
   REGISTRAR_INGRESO: { schema: registrarIngreso, codigo: 'RF-06' },
   IMPORTAR_HISTORICO: { schema: importarHistorico, codigo: 'IMP-01' },
   EDITAR_EQUIPO: { schema: editarEquipo, codigo: 'EDIT-01' },
+  REPONER_EQUIPO: { schema: reponerEquipo, codigo: 'REP-01' },
   CAMBIAR_PROYECTO: { schema: cambiarProyecto, codigo: 'RF-03' },
   INSTALAR_EQUIPO: { schema: instalarEquipo, codigo: 'RF-11' },
   RETIRAR_EQUIPO: { schema: retirarEquipo, codigo: 'RF-13' },

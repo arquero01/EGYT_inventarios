@@ -13,7 +13,7 @@ import { iniciarServidorLocal, type ServidorLocal } from './servidor-local.ts';
  */
 
 const aqui = dirname(fileURLToPath(import.meta.url));
-const NOMBRE = 'eg&t Inventario';
+const NOMBRE = 'EG&T Inventario';
 
 // Una sola copia abierta: dos servidores sobre la misma base la dañarían.
 const unica = app.requestSingleInstanceLock();
@@ -233,7 +233,7 @@ app.whenReady().then(async () => {
     await encender();
   } catch (e) {
     dialog.showErrorBox(
-      'No se pudo iniciar eg&t Inventario',
+      'No se pudo iniciar EG&T Inventario',
       `${String(e)}\n\nSi el problema sigue, cierre otros programas que usen el puerto 3000 o restaure una copia de seguridad.`,
     );
     app.quit();

@@ -20,7 +20,7 @@ export function Pagina({
   children: ReactNode;
 }) {
   useEffect(() => {
-    if (typeof titulo === 'string') document.title = `${titulo} | eg&t Inventario`;
+    if (typeof titulo === 'string') document.title = `${titulo} | EG&T Inventario`;
   }, [titulo]);
   return (
     <div className="pagina">

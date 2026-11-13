@@ -3,7 +3,7 @@
  * triggers, índices) está en /migraciones/*.sql; si cambia una, cambia la otra.
  */
 import { bigint, boolean, char, date, jsonb, numeric, pgTable, smallint, text, timestamp, uuid, varchar } from 'drizzle-orm/pg-core';
-import type { EstadoEquipo, OrigenSerial, Rol, TipoEquipo, TipoEvento, TipoMovimiento, Ubicacion, UnidadCapacidad, UnidadMedida } from '@egt/domain';
+import type { EstadoEquipo, OrigenSerial, Rol, TipoEntrega, TipoEquipo, TipoEvento, TipoMovimiento, Ubicacion, UnidadCapacidad, UnidadMedida } from '@egt/domain';
 
 // rev lo asigna un trigger; el default solo evita que TypeScript lo exija.
 const rev = () => bigint('rev', { mode: 'number' }).notNull().default(0);
@@ -100,6 +100,10 @@ export const instalaciones = pgTable('instalaciones', {
   vigente: boolean('vigente').notNull().default(true),
   finalizadaEn: timestamp('finalizada_en', { withTimezone: true }),
   motivoFin: varchar('motivo_fin', { length: 500 }),
+  /** ENTREGA, REPOSICION (reemplaza a uno con fallas) o PARTICULAR. */
+  tipoEntrega: text('tipo_entrega').$type<TipoEntrega>().notNull().default('ENTREGA'),
+  /** Equipo al que reemplazó, si la reposición se registró en el sistema. */
+  reemplazaEquipoId: uuid('reemplaza_equipo_id'),
   ...marcas(),
   rev: rev(),
 });

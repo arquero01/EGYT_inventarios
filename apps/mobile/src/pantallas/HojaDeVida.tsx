@@ -144,6 +144,11 @@ function TarjetaInstalacion({ instalacion: i }: { instalacion: Instalacion }) {
       <FilaDato etiqueta="Usuario final" valor={i.usuarioFinal.nombre} />
       <FilaDato etiqueta="Cédula" valor={i.usuarioFinal.cedula} />
       {i.usuarioFinal.niu ? <FilaDato etiqueta="NIU" valor={i.usuarioFinal.niu} /> : null}
+      {i.tipoEntrega === 'REPOSICION' ? (
+        <FilaDato etiqueta="Entrega" valor={i.reemplazaA ? `Reposición de ${i.reemplazaA.serial}` : 'Reposición (reemplazó a uno con fallas)'} />
+      ) : i.tipoEntrega === 'PARTICULAR' ? (
+        <FilaDato etiqueta="Entrega" valor="Particular" />
+      ) : null}
       <FilaDato etiqueta="Teléfono" valor={i.usuarioFinal.telefono ?? POR_COMPLETAR} />
       <FilaDato
         etiqueta="Ubicación"
