@@ -246,6 +246,20 @@ describe('Guías y sincronización', () => {
     expect(vacio.aviso.codigo).toBe('RL-10');
   });
 
+  it('la lista de bodegas y la de guías cuentan sus equipos y artículos', async () => {
+    const bodega = await crearBodega();
+    const proyecto = await crearProyecto();
+    const a = await ingresarEquipo(proyecto, bodega);
+    await ingresarEquipo(proyecto, bodega);
+    const enLista = (await obtener('/bodegas')).json().datos.find((b: { id: string }) => b.id === bodega);
+    expect(enLista.equipos).toBe(2);
+
+    await ok('REGISTRAR_DESPACHO', { bodegaOrigenId: bodega, proyectoId: proyecto, responsable: 'Ana', equipos: [a] });
+    expect((await obtener('/bodegas')).json().datos.find((b: { id: string }) => b.id === bodega).equipos).toBe(1);
+    const guia = (await obtener(`/movimientos?bodegaId=${bodega}&tipo=DESPACHO`)).json().datos[0];
+    expect(guia.equipos).toBe(1);
+  });
+
   it('un despacho hecho sin conexión llega por /sync/push una sola vez', async () => {
     const bodega = await crearBodega();
     const proyecto = await crearProyecto();

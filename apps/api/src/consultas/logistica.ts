@@ -15,12 +15,15 @@ const aviso = (codigo: 'RL-09' | 'RL-10' | 'RL-11') => ({ aviso: { codigo, mensa
 
 // ── Bodegas (RL-01, RL-11) ─────────────────────────────────────────────────
 
+// Ojo: en el SELECT drizzle escribe las columnas sin el nombre de la tabla ("id"). Dentro de
+// una subconsulta ese "id" se confunde con el de la tabla interna y la cuenta daba 0, por eso
+// las subconsultas nombran la tabla completa ("bodegas"."id", "movimientos"."id").
 export async function listarBodegas(db: Ejecutor) {
   const filas = await db
     .select({
       bodega: bodegas,
-      equipos: sql<number>`(SELECT count(*)::int FROM equipos e WHERE e.bodega_id = ${bodegas.id})`,
-      articulos: sql<number>`(SELECT count(*)::int FROM existencias x WHERE x.bodega_id = ${bodegas.id} AND x.cantidad > 0)`,
+      equipos: sql<number>`(SELECT count(*)::int FROM equipos e WHERE e.bodega_id = "bodegas"."id")`,
+      articulos: sql<number>`(SELECT count(*)::int FROM existencias x WHERE x.bodega_id = "bodegas"."id" AND x.cantidad > 0)`,
     })
     .from(bodegas)
     .where(eq(bodegas.activa, true))
@@ -170,8 +173,8 @@ export async function listarMovimientos(db: Ejecutor, f: FiltrosMovimientos) {
       proyecto: proyectos.nombre,
       responsable: movimientos.responsable,
       ocurridoEn: movimientos.ocurridoEn,
-      equipos: sql<number>`(SELECT count(*)::int FROM movimiento_items i WHERE i.movimiento_id = ${movimientos.id} AND i.equipo_id IS NOT NULL)`,
-      articulos: sql<number>`(SELECT count(*)::int FROM movimiento_items i WHERE i.movimiento_id = ${movimientos.id} AND i.articulo_id IS NOT NULL)`,
+      equipos: sql<number>`(SELECT count(*)::int FROM movimiento_items i WHERE i.movimiento_id = "movimientos"."id" AND i.equipo_id IS NOT NULL)`,
+      articulos: sql<number>`(SELECT count(*)::int FROM movimiento_items i WHERE i.movimiento_id = "movimientos"."id" AND i.articulo_id IS NOT NULL)`,
     })
     .from(movimientos)
     .leftJoin(origen, eq(origen.id, movimientos.bodegaOrigenId))
