@@ -94,6 +94,12 @@ function Marco({ children }: { children: ReactNode }) {
     window.scrollTo(0, 0);
     if (esAdmin) recargarCuentas();
   }, [ubicacion.pathname, esAdmin, recargarCuentas]);
+  // La pantalla de Cuentas avisa cuando autoriza o rechaza, para actualizar el número del menú.
+  useEffect(() => {
+    const oyente = () => recargarCuentas();
+    window.addEventListener('egt:cuentas', oyente);
+    return () => window.removeEventListener('egt:cuentas', oyente);
+  }, [recargarCuentas]);
 
   return (
     <div className={`marco ${menu ? 'menu-abierto' : ''}`}>

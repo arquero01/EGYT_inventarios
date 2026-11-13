@@ -13,6 +13,7 @@ import {
   limpiarSesionesVencidas,
   listarUsuarios,
   registrar,
+  rechazarCuenta,
   restablecerContrasena,
   usuarioDeToken,
 } from './servicio.ts';
@@ -136,6 +137,11 @@ export function rutasPrivadasAuth(app: FastifyInstance, db: BaseDatos) {
 
   app.post('/usuarios/:id/restablecer', { preHandler: soloAdmin }, async (req) => {
     const { id } = leerCuerpo(idUsuario, req.params, 'AUTH-12');
-    return restablecerContrasena(db, id);
+    return restablecerContrasena(db, id, req.usuario!.id);
+  });
+
+  app.delete('/usuarios/:id', { preHandler: soloAdmin }, async (req) => {
+    const { id } = leerCuerpo(idUsuario, req.params, 'AUTH-12');
+    return rechazarCuenta(db, id);
   });
 }

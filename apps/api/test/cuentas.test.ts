@@ -165,9 +165,10 @@ describe('Registro inmediato (configuración actual)', () => {
   it('nunca deja el sistema sin un administrador activo', async () => {
     const lista = json(await e.sinSesion({ method: 'GET', url: '/usuarios', headers: con(tokenAdmin) }));
     const laura = lista.find((u: { correo: string }) => u.correo === 'laura@egt.co');
+    // Laura es la única administradora y además la cuenta principal.
     const r = await e.sinSesion({ method: 'PATCH', url: `/usuarios/${laura.id}`, headers: con(tokenAdmin), payload: { rol: 'USUARIO' } });
     expect(r.statusCode).toBe(409);
-    expect(json(r).error.codigo).toBe('AUTH-10');
+    expect(json(r).error.codigo).toBe('AUTH-13');
 
     const vacio = await e.sinSesion({ method: 'PATCH', url: `/usuarios/${laura.id}`, headers: con(tokenAdmin), payload: {} });
     expect(vacio.statusCode).toBe(422);
@@ -266,5 +267,60 @@ describe('Registro con autorización (REGISTRO_REQUIERE_APROBACION=true)', () =>
     await e.app.inject({ method: 'PATCH', url: `/usuarios/${cuerpo.usuario.id}`, payload: { activo: true } });
     const despues = await e.sinSesion({ method: 'POST', url: '/auth/ingresar', payload: { correo: 'jorge@egt.co', contrasena: 'bateria123' } });
     expect(despues.statusCode).toBe(200);
+  });
+});
+
+describe('Cuenta principal y cuentas por autorizar', () => {
+  let e: Entorno;
+  beforeAll(async () => {
+    e = await crearEntorno({ registroRequiereAprobacion: true });
+  });
+  afterAll(async () => e.cerrar());
+
+  const registrar = (nombre: string, correo: string) =>
+    e.sinSesion({ method: 'POST', url: '/auth/registro', payload: { nombre, correo, contrasena: 'clave-segura-1' } });
+  const ingresar = async (correo: string) =>
+    (await e.sinSesion({ method: 'POST', url: '/auth/ingresar', payload: { correo, contrasena: 'clave-segura-1' } })).json().token as string;
+
+  it('la primera cuenta es la principal; las nuevas entran como usuario y por autorizar', async () => {
+    const yo = json(await e.app.inject({ method: 'GET', url: '/auth/yo' })).usuario;
+    expect(yo).toMatchObject({ rol: 'ADMIN', principal: true });
+    const r = json(await registrar('Marta Ruiz', 'marta@egt.co'));
+    expect(r.usuario).toMatchObject({ rol: 'USUARIO', activo: false, principal: false });
+    const lista = json(await e.app.inject({ method: 'GET', url: '/usuarios' }));
+    expect(lista[0].principal).toBe(true); // la principal va de primera
+  });
+
+  it('nadie puede quitarle el rol, desactivar ni cambiarle la contraseña a la principal', async () => {
+    const yo = json(await e.app.inject({ method: 'GET', url: '/auth/yo' })).usuario;
+    const marta = json(await e.app.inject({ method: 'GET', url: '/usuarios' })).find((u: { correo: string }) => u.correo === 'marta@egt.co');
+    await e.app.inject({ method: 'PATCH', url: `/usuarios/${marta.id}`, payload: { activo: true, rol: 'ADMIN' } });
+    const otra = { authorization: `Bearer ${await ingresar('marta@egt.co')}` };
+
+    const quitarRol = await e.sinSesion({ method: 'PATCH', url: `/usuarios/${yo.id}`, headers: otra, payload: { rol: 'USUARIO' } });
+    expect(quitarRol.statusCode).toBe(409);
+    expect(json(quitarRol).error.codigo).toBe('AUTH-13');
+    const desactivar = await e.sinSesion({ method: 'PATCH', url: `/usuarios/${yo.id}`, headers: otra, payload: { activo: false } });
+    expect(json(desactivar).error.codigo).toBe('AUTH-13');
+    const clave = await e.sinSesion({ method: 'POST', url: `/usuarios/${yo.id}/restablecer`, headers: otra });
+    expect(clave.statusCode).toBe(403);
+    expect(json(clave).error.codigo).toBe('AUTH-14');
+
+    // La principal sí administra a las demás.
+    expect((await e.app.inject({ method: 'PATCH', url: `/usuarios/${marta.id}`, payload: { rol: 'USUARIO' } })).statusCode).toBe(200);
+    expect((await e.app.inject({ method: 'POST', url: `/usuarios/${marta.id}/restablecer` })).statusCode).toBe(200);
+  });
+
+  it('una cuenta por autorizar se puede rechazar; una que ya entró, no', async () => {
+    const r = json(await registrar('Pedro Gil', 'pedro@egt.co'));
+    const borrar = await e.app.inject({ method: 'DELETE', url: `/usuarios/${r.usuario.id}` });
+    expect(borrar.statusCode).toBe(200);
+    const lista = json(await e.app.inject({ method: 'GET', url: '/usuarios' }));
+    expect(lista.some((u: { correo: string }) => u.correo === 'pedro@egt.co')).toBe(false);
+
+    const marta = lista.find((u: { correo: string }) => u.correo === 'marta@egt.co');
+    const noSe = await e.app.inject({ method: 'DELETE', url: `/usuarios/${marta.id}` });
+    expect(noSe.statusCode).toBe(409);
+    expect(json(noSe).error.codigo).toBe('AUTH-15');
   });
 });

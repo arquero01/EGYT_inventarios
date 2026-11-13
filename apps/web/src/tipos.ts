@@ -256,6 +256,8 @@ export interface UsuarioEnLista {
   ultimoIngreso: string | null;
   /** Se registró y nunca ha entrado porque espera autorización. */
   pendiente: boolean;
+  /** La cuenta principal (logística): no se le puede quitar el rol ni desactivar. */
+  principal: boolean;
 }
 
 export interface Conflicto {

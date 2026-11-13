@@ -152,7 +152,7 @@ export function construirApp(db: BaseDatos, opciones: OpcionesApp = {}): Fastify
   }
 
   // ── Cuentas: registro e ingreso no piden sesión ─────────────────────────
-  rutasPublicasAuth(app, db, { registroRequiereAprobacion: opciones.registroRequiereAprobacion ?? false });
+  rutasPublicasAuth(app, db, { registroRequiereAprobacion: opciones.registroRequiereAprobacion ?? true });
 
   // Todo lo que sigue exige haber iniciado sesión (encabezado Authorization: Bearer <token>).
   app.register(async (app) => {

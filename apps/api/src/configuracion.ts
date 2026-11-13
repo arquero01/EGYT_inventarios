@@ -11,12 +11,12 @@ const esquemaConfig = z.object({
     .default('false')
     .transform((v) => v === 'true'),
   /**
-   * false (por ahora) → quien se registra entra de una vez.
-   * true → la cuenta queda pendiente hasta que un administrador la autorice.
+   * true (normal) → la cuenta queda pendiente hasta que un administrador la autorice.
+   * false → quien se registra entra de una vez (solo para pruebas).
    */
   REGISTRO_REQUIERE_APROBACION: z
     .enum(['true', 'false'])
-    .default('false')
+    .default('true')
     .transform((v) => v === 'true'),
   /** Carpeta del panel web compilado. Por defecto apps/web/dist si existe. */
   CARPETA_PANEL: z.string().optional(),

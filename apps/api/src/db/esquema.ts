@@ -189,6 +189,7 @@ export const usuarios = pgTable('usuarios', {
   contrasenaHash: text('contrasena_hash').notNull(),
   rol: text('rol').$type<Rol>().notNull().default('USUARIO'),
   activo: boolean('activo').notNull().default(true),
+  principal: boolean('principal').notNull().default(false),
   ...marcas(),
   ultimoIngreso: timestamp('ultimo_ingreso', { withTimezone: true }),
 });

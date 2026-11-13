@@ -1,4 +1,4 @@
-import { and, asc, count, eq, gt, ne, sql } from 'drizzle-orm';
+import { and, asc, count, desc, eq, gt, ne, sql } from 'drizzle-orm';
 import {
   ErrorDominio,
   errorConflicto,
@@ -39,6 +39,7 @@ export const publico = (u: FilaUsuario): Usuario => ({
   correo: u.correo,
   rol: u.rol,
   activo: u.activo,
+  principal: u.principal,
 });
 
 export const errorNoAutenticado = (codigo: 'AUTH-05' | 'AUTH-06' = 'AUTH-05') => new ErrorDominio(codigo, 'NO_AUTENTICADO');
@@ -58,9 +59,10 @@ async function crearSesion(db: Ejecutor, u: FilaUsuario, dispositivo: string | u
 }
 
 /**
- * Crea una cuenta. La primera cuenta del sistema queda como administrador y
- * activa. Las demás quedan como usuario; si se exige aprobación, inactivas
- * hasta que un administrador las active.
+ * Crea una cuenta. La primera cuenta del sistema queda como administrador,
+ * activa y principal. Las demás entran siempre como usuario; si se exige
+ * aprobación (lo normal), inactivas hasta que un administrador las autorice.
+ * El rol lo da después un administrador.
  */
 export async function registrar(
   db: BaseDatos,
@@ -78,7 +80,7 @@ export async function registrar(
     const activo = esPrimero || !opciones.requiereAprobacion;
     const [u] = await tx
       .insert(usuarios)
-      .values({ nombre: datos.nombre, correo: datos.correo, contrasenaHash: huella, rol: esPrimero ? 'ADMIN' : 'USUARIO', activo })
+      .values({ nombre: datos.nombre, correo: datos.correo, contrasenaHash: huella, rol: esPrimero ? 'ADMIN' : 'USUARIO', activo, principal: esPrimero })
       .returning();
     if (!u) throw new ErrorDominio('INTERNO', 'INTERNO');
     if (!activo) return { pendiente: true as const, usuario: publico(u) };
@@ -129,7 +131,7 @@ export async function cambiarContrasena(db: BaseDatos, usuarioId: string, tokenA
 // ── Administración de cuentas ──────────────────────────────────────────────
 
 export async function listarUsuarios(db: BaseDatos) {
-  const filas = await db.select().from(usuarios).orderBy(asc(usuarios.activo), asc(usuarios.nombre));
+  const filas = await db.select().from(usuarios).orderBy(desc(usuarios.principal), asc(usuarios.activo), asc(usuarios.nombre));
   return filas.map((u) => ({
     ...publico(u),
     creadoEn: u.creadoEn.toISOString(),
@@ -147,6 +149,7 @@ export async function cambiarUsuario(db: BaseDatos, id: string, cambios: { rol?:
     await tx.execute(sql`SELECT pg_advisory_xact_lock(${LLAVE_USUARIOS})`);
     const [u] = await tx.select().from(usuarios).where(eq(usuarios.id, id));
     if (!u) throw errorNoEncontrado('AUTH-12');
+    if (u.principal && ((cambios.rol !== undefined && cambios.rol !== 'ADMIN') || cambios.activo === false)) throw errorConflicto('AUTH-13');
 
     const quedaAdminActivo = (cambios.rol ?? u.rol) === 'ADMIN' && (cambios.activo ?? u.activo);
     if (u.rol === 'ADMIN' && u.activo && !quedaAdminActivo) {
@@ -177,7 +180,11 @@ export async function cambiarUsuario(db: BaseDatos, id: string, cambios: { rol?:
  * Para quien olvidó su contraseña: el administrador genera una temporal y se
  * la entrega a la persona (no hay envío de correos). Cierra todas sus sesiones.
  */
-export async function restablecerContrasena(db: BaseDatos, id: string) {
+export async function restablecerContrasena(db: BaseDatos, id: string, solicitanteId: string) {
+  const [objetivo] = await db.select({ principal: usuarios.principal }).from(usuarios).where(eq(usuarios.id, id));
+  if (!objetivo) throw errorNoEncontrado('AUTH-12');
+  // Nadie más puede quedarse con la cuenta principal generándole otra contraseña.
+  if (objetivo.principal && id !== solicitanteId) throw new ErrorDominio('AUTH-14', 'PROHIBIDO');
   const temporal = contrasenaTemporal();
   const huella = await cifrarContrasena(temporal);
   return db.transaction(async (tx) => {
@@ -190,6 +197,15 @@ export async function restablecerContrasena(db: BaseDatos, id: string) {
     await tx.delete(sesiones).where(eq(sesiones.usuarioId, id));
     return { usuario: publico(u), contrasenaTemporal: temporal };
   });
+}
+
+/** Rechaza (borra) una cuenta que se registró pero nunca fue autorizada. */
+export async function rechazarCuenta(db: BaseDatos, id: string) {
+  const [u] = await db.select().from(usuarios).where(eq(usuarios.id, id));
+  if (!u) throw errorNoEncontrado('AUTH-12');
+  if (u.activo || u.ultimoIngreso !== null || u.principal) throw errorConflicto('AUTH-15');
+  await db.delete(usuarios).where(eq(usuarios.id, id));
+  return { ok: true };
 }
 
 /** Borra sesiones vencidas (se llama de vez en cuando al iniciar sesión). */

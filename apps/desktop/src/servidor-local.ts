@@ -72,7 +72,7 @@ export async function iniciarServidorLocal(opciones: OpcionesServidorLocal): Pro
     const app = construirApp(conexion.db, {
       logger: false,
       carpetaPanel: opciones.carpetaPanel,
-      registroRequiereAprobacion: opciones.registroRequiereAprobacion ?? false,
+      registroRequiereAprobacion: opciones.registroRequiereAprobacion ?? true,
     });
     const puerto = await escuchar(app, opciones.puerto ?? 3000);
     let cerrado = false;

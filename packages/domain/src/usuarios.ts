@@ -68,4 +68,6 @@ export interface Usuario {
   correo: string;
   rol: Rol;
   activo: boolean;
+  /** La cuenta principal (logística): no se puede desactivar ni dejar de ser administradora. */
+  principal: boolean;
 }

@@ -1708,3 +1708,15 @@ button.enlace {
   color: var(--atencion-tinta);
   font-weight: 600;
 }
+
+/* ── Cuentas: rol de cada persona ─────────────────────────────────────── */
+.selector-rol {
+  min-height: 34px;
+  padding: 4px 28px 4px 10px;
+  border: 1px solid var(--linea);
+  border-radius: 8px;
+  background-color: var(--superficie);
+  color: inherit;
+  font: inherit;
+  font-size: var(--t-s);
+}

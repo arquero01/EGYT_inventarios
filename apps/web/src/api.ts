@@ -61,7 +61,7 @@ export function suscribirSesion(oyente: (s: Sesion | null) => void) {
   };
 }
 
-type Metodo = 'GET' | 'POST' | 'PATCH';
+type Metodo = 'GET' | 'POST' | 'PATCH' | 'DELETE';
 
 export async function pedir<T = unknown>(metodo: Metodo, ruta: string, cuerpo?: unknown): Promise<T> {
   let respuesta: Response;

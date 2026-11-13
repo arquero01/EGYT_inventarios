@@ -66,6 +66,9 @@ export const MENSAJES = {
   'AUTH-10': 'Error: Debe quedar al menos un administrador activo.',
   'AUTH-11': 'Error de validación: revise los datos de la cuenta.',
   'AUTH-12': 'Error: El usuario no existe.',
+  'AUTH-13': 'Error: La cuenta principal no se puede desactivar ni dejar de ser administradora.',
+  'AUTH-14': 'Error: La contraseña de la cuenta principal solo la cambia ella misma, desde Mi cuenta.',
+  'AUTH-15': 'Error: Solo se pueden rechazar las cuentas que todavía esperan autorización.',
 
   // (propio) Casos que el documento no cubre.
   'RF-08-FACTURA': 'Error: Ya existe una factura con ese NIT y número, pero con proveedor o fecha de compra distintos.',
