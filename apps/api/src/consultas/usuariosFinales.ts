@@ -114,7 +114,7 @@ export async function listarUsuariosFinales(db: Ejecutor, f: FiltrosUsuarios) {
         ORDER BY translate(lower(u.nombre), 'áéíóúüñ', 'aeiouun'), u.cedula
         LIMIT ${f.porPagina} OFFSET ${(f.pagina - 1) * f.porPagina}`,
   );
-  return { datos, paginacion: { pagina: f.pagina, porPagina: f.porPagina, total, paginas: Math.max(1, Math.ceil(total / f.porPagina)) } };
+  return { datos, paginacion: { pagina: f.pagina, porPagina: f.porPagina, total, totalPaginas: Math.max(1, Math.ceil(total / f.porPagina)) } };
 }
 
 export async function fichaUsuarioFinal(db: Ejecutor, id: string) {

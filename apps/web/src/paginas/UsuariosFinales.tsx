@@ -1,18 +1,20 @@
 import { NOMBRE_TIPO_ENTREGA } from '@egt/domain';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router';
 import { FalloApi, pedir } from '../api.ts';
-import { cantidad, fecha } from '../formato.ts';
+import { cantidad, fecha, nombrePropio } from '../formato.ts';
 import { useEsAdmin, useLectura } from '../ganchos.ts';
-import { MapaUsuarios, useDatosMapa, useZonasUbicadas } from '../mapa/MapaUsuarios.tsx';
+import { escalaUsuarios, MapaUsuarios, useDatosMapa, useZonasUbicadas } from '../mapa/MapaUsuarios.tsx';
 import { normalizarNombre, type ZonaUbicada } from '../mapa/ubicar.ts';
 import type { FichaUsuarioFinal, Paginacion as DatosPaginacion, ResumenUsuarios, UsuarioFinalEnLista, ZonaDeUsuarios } from '../tipos.ts';
-import { Aviso, Boton, Cajon, Campo, FilaVinculada, Lista, InsigniaEstado, Lectura, Pagina, Paginacion, Seccion, Vacio } from '../ui/componentes.tsx';
+import { Aviso, Boton, Cajon, Campo, Datos, FilaVinculada, Lista, InsigniaEstado, Lectura, Pagina, Paginacion, Seccion, Vacio } from '../ui/componentes.tsx';
+import { Icono } from '../ui/iconos.tsx';
 
 /**
- * Usuarios finales: las personas que tienen o tuvieron equipos. Arriba, un
- * tablero con el mapa de Colombia y las zonas (se eligen tocando el mapa o en
- * la lista escrita); abajo, la lista de usuarios de las zonas elegidas.
+ * Usuarios finales: las personas que tienen o tuvieron equipos. Arriba, las
+ * cifras; luego el mapa de Colombia con los municipios sombreados y la lista
+ * escrita de zonas (se eligen en cualquiera de los dos); abajo, la lista de
+ * usuarios de las zonas elegidas.
  */
 export function UsuariosFinales() {
   const [params, setParams] = useSearchParams();
@@ -24,6 +26,7 @@ export function UsuariosFinales() {
   const ubicadas = useZonasUbicadas(resumen.datos?.zonas ?? [], mapa);
   const esAdmin = useEsAdmin();
   const [ubicando, setUbicando] = useState(false);
+  const [texto, setTexto] = useState(q);
 
   const consulta = new URLSearchParams({ pagina, porPagina: '25' });
   if (q.trim()) consulta.set('q', q.trim());
@@ -33,7 +36,7 @@ export function UsuariosFinales() {
   const cambiar = (cambio: (p: URLSearchParams) => void) => {
     const n = new URLSearchParams(params);
     cambio(n);
-    if (!n.has('pagina') || n.get('pagina') === pagina) n.delete('pagina');
+    if (!n.has('pagina') || n.get('pagina') === '1') n.delete('pagina');
     setParams(n, { replace: true });
   };
   const alternar = (llave: string) =>
@@ -49,9 +52,31 @@ export function UsuariosFinales() {
       n.delete('pagina');
     });
 
+  // La búsqueda espera a que se deje de escribir.
+  useEffect(() => {
+    const t = setTimeout(() => {
+      if (q !== texto.trim())
+        cambiar((n) => {
+          if (texto.trim()) n.set('q', texto.trim());
+          else n.delete('q');
+          n.delete('pagina');
+        });
+    }, 300);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [texto]);
+
+  const zonas = resumen.datos?.zonas ?? [];
+  const escala = useMemo(() => escalaUsuarios(Math.max(1, ...zonas.map((z) => z.usuarios))), [zonas]);
+  const ubicadaPorLlave = new Map(ubicadas.map((u) => [u.zona.llave, u]));
+  const deptoDe = (z: ZonaDeUsuarios) => {
+    const u = ubicadaPorLlave.get(z.llave);
+    return u?.municipio && mapa ? mapa.nombreDepto[u.municipio.dc] : z.departamento;
+  };
   const sinUbicar = ubicadas.filter((u) => !u.municipio);
   const supuestas = ubicadas.filter((u) => u.metodo === 'SUPUESTA');
-  const nombresElegidos = seleccion.map((l) => resumen.datos?.zonas.find((z) => z.llave === l)?.zona ?? l);
+  const nombreZona = (llave: string) => zonas.find((z) => z.llave === llave)?.zona ?? llave;
+  const total = lista.datos?.paginacion.total;
 
   return (
     <Pagina titulo="Usuarios" descripcion="Las personas que tienen o tuvieron equipos de la empresa, y en qué zonas están.">
@@ -84,91 +109,121 @@ export function UsuariosFinales() {
                 </div>
               </div>
 
-              <div className="usuarios-tablero">
-                <Seccion titulo="Mapa de usuarios">
+              <section className="tarjeta tarjeta-mapa" aria-labelledby="titulo-mapa">
+                <header className="tarjeta-cabecera">
+                  <div>
+                    <h2 id="titulo-mapa">Mapa de usuarios</h2>
+                    <p>Toque un municipio sombreado o marque una zona en la lista para ver solo sus usuarios.</p>
+                  </div>
+                  {esAdmin && mapa ? (
+                    <Boton variante="secundario" pequeno onClick={() => setUbicando(true)}>
+                      Ubicar zonas
+                    </Boton>
+                  ) : null}
+                </header>
+
+                <div className="tarjeta-mapa-cuerpo">
                   {mapa ? (
-                    <MapaUsuarios mapa={mapa} ubicadas={ubicadas} seleccion={seleccion} alAlternar={alternar} />
+                    <MapaUsuarios mapa={mapa} ubicadas={ubicadas} seleccion={seleccion} escala={escala} alAlternar={alternar} />
                   ) : (
                     <div className="mapa mapa-cargando">Cargando el mapa…</div>
                   )}
-                  {sinUbicar.length > 0 || supuestas.length > 0 ? (
-                    <p className="suave nota-mapa">
+
+                  <aside className="panel-zonas" aria-labelledby="titulo-zonas">
+                    <div className="panel-zonas-cabecera">
+                      <h3 id="titulo-zonas">
+                        Zonas <span className="suave">({cantidad(r.zonas.length)})</span>
+                      </h3>
+                      {seleccion.length > 0 ? (
+                        <button type="button" className="enlace" onClick={limpiar}>
+                          Ver todas
+                        </button>
+                      ) : (
+                        <span className="suave">Marque una o varias</span>
+                      )}
+                    </div>
+                    <fieldset className="lista-zonas-elegir">
+                      <legend className="visualmente-oculto">Elija las zonas que quiere ver</legend>
+                      <div className="fila-zona titulos" aria-hidden="true">
+                        <span />
+                        <span>Zona</span>
+                        <span className="derecha">Usuarios</span>
+                        <span className="derecha">Equipos</span>
+                      </div>
+                      {r.zonas.map((z) => {
+                        const elegida = seleccion.includes(z.llave);
+                        const u = ubicadaPorLlave.get(z.llave);
+                        return (
+                          <label key={z.llave} className={`fila-zona${elegida ? ' elegida' : ''}`}>
+                            <input type="checkbox" checked={elegida} onChange={() => alternar(z.llave)} />
+                            <span className="nombre-zona">
+                              <span className="muestra" style={{ background: escala.tono(z.usuarios) }} aria-hidden="true" />
+                              <span>
+                                {z.zona}
+                                <span className="secundaria">
+                                  {deptoDe(z) ?? 'Sin departamento'}
+                                  {u?.metodo === 'SUPUESTA' ? ' · por confirmar' : !u?.municipio && mapa ? ' · sin ubicar' : ''}
+                                </span>
+                              </span>
+                            </span>
+                            <b className="num derecha">{cantidad(z.usuarios)}</b>
+                            <span className="num derecha">{cantidad(z.instalados)}</span>
+                          </label>
+                        );
+                      })}
+                    </fieldset>
+                  </aside>
+                </div>
+
+                {sinUbicar.length > 0 || supuestas.length > 0 ? (
+                  <p className="nota-mapa">
+                    <Icono nombre="info" tamano={16} />
+                    <span>
                       {sinUbicar.length > 0 ? `Sin ubicar en el mapa: ${sinUbicar.map((u) => u.zona.zona).join(', ')}. ` : ''}
                       {supuestas.length > 0
                         ? `Ubicación supuesta (el nombre existe en varios departamentos): ${supuestas.map((u) => `${u.zona.zona} → ${mapa?.nombreDepto[u.municipio!.dc] ?? ''}`).join(', ')}. `
                         : ''}
-                      {esAdmin ? (
-                        <button type="button" className="enlace" onClick={() => setUbicando(true)}>
-                          Ubicar zonas
-                        </button>
-                      ) : (
-                        'Un administrador puede corregirlo.'
-                      )}
-                    </p>
-                  ) : esAdmin ? (
-                    <p className="suave nota-mapa">
-                      ¿Alguna zona quedó en otro lugar?{' '}
-                      <button type="button" className="enlace" onClick={() => setUbicando(true)}>
-                        Ubicar zonas
-                      </button>
-                    </p>
-                  ) : null}
-                </Seccion>
-
-                <Seccion
-                  titulo="Zonas"
-                  accion={
-                    seleccion.length > 0 ? (
-                      <button type="button" className="enlace" onClick={limpiar}>
-                        Ver todas
-                      </button>
-                    ) : null
-                  }
-                >
-                  <fieldset className="lista-zonas-elegir">
-                    <legend className="visualmente-oculto">Elija las zonas que quiere ver</legend>
-                    {r.zonas.map((z) => (
-                      <label key={z.llave} className={seleccion.includes(z.llave) ? 'elegida' : undefined}>
-                        <input type="checkbox" checked={seleccion.includes(z.llave)} onChange={() => alternar(z.llave)} />
-                        <span className="nombre-zona">
-                          {z.zona}
-                          <span className="secundaria">
-                            {cantidad(z.conEquipo)} con equipo · {cantidad(z.instalados)} equipos{z.reposiciones > 0 ? ` · ${cantidad(z.reposiciones)} reposiciones` : ''}
-                          </span>
-                        </span>
-                        <b className="num">{cantidad(z.usuarios)}</b>
-                      </label>
-                    ))}
-                  </fieldset>
-                </Seccion>
-              </div>
+                      {esAdmin ? 'Confírmela con «Ubicar zonas».' : 'Un administrador puede confirmarla.'}
+                    </span>
+                  </p>
+                ) : null}
+              </section>
             </>
           )
         }
       </Lectura>
 
-      <Seccion titulo={lista.datos ? `Usuarios (${cantidad(lista.datos.paginacion.total)})` : 'Usuarios'}>
-        <div className="filtros-usuarios">
-          <Campo
-            etiqueta="Buscar usuario"
-            valor={q}
-            alCambiar={(v) =>
-              cambiar((n) => {
-                if (v) n.set('q', v);
-                else n.delete('q');
-                n.delete('pagina');
-              })
-            }
-            marcador="Nombre, cédula o NIU"
-            autocompletar="off"
-          />
-          {seleccion.length > 0 ? (
-            <p className="filtro-activo">
-              Zonas: <b>{nombresElegidos.join(', ')}</b>.{' '}
-              <button type="button" className="enlace" onClick={limpiar}>
-                Quitar filtro
-              </button>
+      <section className="seccion tarjeta tarjeta-lista" aria-labelledby="titulo-lista">
+        <header className="tarjeta-cabecera">
+          <div>
+            <h2 id="titulo-lista">Usuarios</h2>
+            <p>
+              {total === undefined
+                ? 'Cargando…'
+                : `${cantidad(total)} ${total === 1 ? 'usuario' : 'usuarios'}${seleccion.length > 0 ? ` en ${seleccion.map(nombreZona).join(', ')}` : ' en todas las zonas'}${q ? ` que coinciden con «${q}»` : ''}`}
             </p>
+          </div>
+        </header>
+        <div className="barra-lista">
+          <div className="campo buscador">
+            <label htmlFor="buscar-usuario" className="visualmente-oculto">
+              Buscar usuario
+            </label>
+            <Icono nombre="buscar" />
+            <input id="buscar-usuario" type="search" value={texto} onChange={(e) => setTexto(e.target.value)} placeholder="Buscar por nombre, cédula o NIU" autoComplete="off" />
+          </div>
+          {seleccion.length > 0 ? (
+            <div className="filtros-elegidos" aria-label="Zonas elegidas">
+              {seleccion.map((l) => (
+                <button key={l} type="button" className="chip chip-quitar" onClick={() => alternar(l)} aria-label={`Quitar ${nombreZona(l)}`}>
+                  {nombreZona(l)}
+                  <Icono nombre="cerrar" tamano={14} />
+                </button>
+              ))}
+              <button type="button" className="enlace" onClick={limpiar}>
+                Quitar filtros
+              </button>
+            </div>
           ) : null}
         </div>
         <Lectura estado={lista}>
@@ -178,13 +233,13 @@ export function UsuariosFinales() {
             ) : (
               <>
                 <div className="tabla-envoltura">
-                  <table className="tabla">
+                  <table className="tabla tabla-usuarios">
                     <thead>
                       <tr>
                         <th>Usuario</th>
                         <th>NIU</th>
                         <th>Zona</th>
-                        <th className="derecha">Equipos que tiene</th>
+                        <th className="derecha">Equipos actuales</th>
                         <th className="derecha">Entregas</th>
                         <th>Última entrega</th>
                       </tr>
@@ -193,7 +248,7 @@ export function UsuariosFinales() {
                       {l.datos.map((u) => (
                         <FilaVinculada key={u.id} a={`/usuarios-finales/${u.id}`}>
                           <td>
-                            <Link to={`/usuarios-finales/${u.id}`}>{u.nombre}</Link>
+                            <Link to={`/usuarios-finales/${u.id}`}>{nombrePropio(u.nombre)}</Link>
                             <span className="secundaria num">C.C. {u.cedula}</span>
                           </td>
                           <td className="num">{u.niu ?? <span className="suave">—</span>}</td>
@@ -214,7 +269,7 @@ export function UsuariosFinales() {
             )
           }
         </Lectura>
-      </Seccion>
+      </section>
 
       {ubicando && mapa ? (
         <UbicarZonas
@@ -345,7 +400,7 @@ export function UsuarioFinal() {
         const actuales = d.entregas.filter((x) => x.vigente);
         const zonas = [...new Set(d.entregas.map((x) => x.zona))];
         return (
-          <Pagina titulo={d.usuario.nombre} descripcion={`C.C. ${d.usuario.cedula}`} volver={{ a: '/usuarios-finales', texto: 'Usuarios' }}>
+          <Pagina titulo={nombrePropio(d.usuario.nombre)} descripcion={`C.C. ${d.usuario.cedula}`} volver={{ a: '/usuarios-finales', texto: 'Usuarios' }}>
             <div className="resumen-historico">
               <div className="cifra">
                 <b className="num">{cantidad(actuales.length)}</b>
@@ -360,11 +415,15 @@ export function UsuarioFinal() {
                 <span>reposiciones</span>
               </div>
             </div>
-            <p className="datos-proyecto">
-              <span>NIU: {d.usuario.niu ?? 'sin registrar'}</span>
-              <span>Teléfono: {d.usuario.telefono ?? 'sin registrar'}</span>
-              <span>Zona: {zonas.join(', ')}</span>
-            </p>
+            <div className="tarjeta tarjeta-datos">
+              <Datos
+                pares={[
+                  ['NIU', d.usuario.niu ? <span className="num">{d.usuario.niu}</span> : 'Sin registrar'],
+                  ['Teléfono', d.usuario.telefono ? <span className="num">{d.usuario.telefono}</span> : 'Sin registrar'],
+                  ['Zona', zonas.join(', ')],
+                ]}
+              />
+            </div>
             <Seccion titulo="Equipos entregados">
               <div className="tabla-envoltura">
                 <table className="tabla">

@@ -16,7 +16,10 @@ describe('Mapa de usuarios', () => {
   it('trae los departamentos y municipios de Colombia', () => {
     expect(mapa.departamentos.length).toBe(32);
     expect(mapa.municipios.length).toBeGreaterThan(1100);
-    expect(mapa.departamentos.every((d) => d.d.startsWith('M'))).toBe(true);
+    // Cada municipio trae su contorno para sombrearlo; los límites de departamento van en un solo trazo.
+    expect(mapa.municipios.every((m) => m.d.startsWith('M'))).toBe(true);
+    expect(mapa.bordesDeptos.startsWith('M')).toBe(true);
+    expect(mapa.departamentos.every((d) => d.caja.length === 4 && d.caja[0]! < d.caja[2]!)).toBe(true);
   });
 
   it('ubica las zonas del archivo de la empresa por el nombre del municipio', () => {

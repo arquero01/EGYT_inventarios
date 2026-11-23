@@ -43,6 +43,8 @@ describe('Usuarios finales', () => {
   it('la lista se filtra por una o varias zonas y por nombre, cédula o NIU', async () => {
     const todas = await obtener('/usuarios-finales');
     expect(todas.paginacion.total).toBe(3);
+    // Mismo formato de paginación que las demás listas (la barra de páginas usa totalPaginas).
+    expect(todas.paginacion.totalPaginas).toBe(1);
     expect(todas.datos.map((u: { nombre: string }) => u.nombre)).toEqual(['Ana Ríos', 'Pedro Gómez', 'Rosa Díaz']);
     const rosa = todas.datos.find((u: { nombre: string }) => u.nombre === 'Rosa Díaz');
     expect(rosa).toMatchObject({ zonas: ['San Miguel'], equiposActuales: 2, entregas: 2, reposiciones: 1, ultimaEntrega: '2025-05-10' });

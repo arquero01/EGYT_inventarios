@@ -49,9 +49,17 @@ No se importan las filas sin tipo de equipo, con un tipo que no existe en el sis
 
 ## Usuarios (mapa)
 
-El menú **Usuarios** muestra a las personas que tienen o tuvieron equipos: cuántas hay, cuántas tienen equipo instalado, equipos instalados y reposiciones. El **mapa de Colombia** tiene una burbuja por zona (más grande, más usuarios); se puede acercar a todo el país, a las zonas o a un departamento. Tocar una burbuja, o marcarla en la lista **Zonas** de la derecha, deja abajo solo los usuarios de las zonas elegidas; la lista se busca por nombre, cédula o NIU y cada usuario tiene su ficha con todos los equipos que ha recibido.
+El menú **Usuarios** muestra a las personas que tienen o tuvieron equipos: cuántas hay, cuántas tienen equipo instalado, equipos instalados y reposiciones.
 
-Las zonas se ubican solas por el nombre del municipio (datos del DANE, sin internet). Si el nombre existe en varios departamentos (San Miguel, Miraflores) se elige el más probable y queda «supuesta»: un administrador lo confirma o corrige en **Ubicar zonas**. El mapa se regenera con `scripts/generar-mapa-colombia.mjs`.
+- **Mapa de Colombia:** cada municipio con usuarios aparece sombreado en azul; entre más oscuro, más usuarios (la leyenda dice los rangos). Se acerca con la rueda del mouse, doble clic, dos dedos o los botones **+ / −**, y se mueve arrastrando, como un mapa de internet. Al acercarse aparecen los límites y nombres de los municipios. El menú **Ver** lleva directo a las zonas con usuarios, a todo el país o a un departamento.
+- **Elegir zonas:** tocar un municipio sombreado, o marcarlo en la lista **Zonas** de la derecha, deja abajo solo sus usuarios. Las zonas elegidas se pueden quitar con la ✕.
+- **Lista de usuarios:** se busca por nombre, cédula o NIU; cada usuario tiene su ficha con todos los equipos que ha recibido.
+
+Las zonas se ubican solas por el nombre del municipio (datos del DANE, sin internet). Si el nombre existe en varios departamentos (San Miguel, Miraflores) se elige el más probable y queda «por confirmar»: un administrador lo confirma o corrige en **Ubicar zonas**. El mapa se regenera con `scripts/generar-mapa-colombia.mjs`.
+
+## Listas por páginas
+
+En todas las listas largas (Equipos, Guías, Usuarios) la barra de páginas queda pegada abajo mientras se ve la lista: se puede pasar de página desde cualquier punto. Al cambiar de página, la pantalla sube sola al comienzo de la lista.
 
 ## Reposición
 

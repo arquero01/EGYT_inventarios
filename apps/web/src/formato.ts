@@ -28,3 +28,17 @@ export function aNumero(texto: string): number {
   const normal = /^\d{1,3}(\.\d{3})+$/.test(limpio) ? limpio.replace(/\./g, '') : limpio.replace(',', '.');
   return Number(normal);
 }
+
+const PARTICULAS = new Set(['de', 'del', 'la', 'las', 'los', 'y', 'e', 'da', 'do', 'van', 'von']);
+/**
+ * "ABIGAIL MARÍA ERAZO" → "Abigail María Erazo". Solo para mostrar nombres que
+ * llegaron todo en mayúsculas; si ya traen minúsculas se dejan como están.
+ */
+export function nombrePropio(texto: string) {
+  if (texto !== texto.toUpperCase()) return texto;
+  return texto
+    .toLowerCase()
+    .split(/(\s+|-)/)
+    .map((p, i) => (i > 0 && PARTICULAS.has(p) ? p : p.charAt(0).toUpperCase() + p.slice(1)))
+    .join('');
+}

@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { NOMBRE_ESTADO, type EstadoEquipo } from '@egt/domain';
 import type { Paginacion as DatosPaginacion } from '../tipos.ts';
+import { cantidad } from '../formato.ts';
 import { Icono, type NombreIcono } from './iconos.tsx';
 
 // ── Página y secciones ─────────────────────────────────────────────────────
@@ -322,23 +323,75 @@ export function FilaVinculada({ a, children }: { a: string; children: ReactNode 
   );
 }
 
+/** Números de página a mostrar: los extremos y los vecinos de la actual, con «…» en los saltos. */
+export function paginasVisibles(actual: number, total: number): (number | '…')[] {
+  const elegidas = new Set<number>([1, total, actual - 1, actual, actual + 1]);
+  if (actual <= 3) [2, 3, 4].forEach((p) => elegidas.add(p));
+  if (actual >= total - 2) [total - 1, total - 2, total - 3].forEach((p) => elegidas.add(p));
+  const orden = [...elegidas].filter((p) => p >= 1 && p <= total).sort((a, b) => a - b);
+  const salida: (number | '…')[] = [];
+  for (const p of orden) {
+    const anterior = salida.at(-1);
+    if (typeof anterior === 'number' && p - anterior === 2) salida.push(anterior + 1);
+    else if (typeof anterior === 'number' && p - anterior > 2) salida.push('…');
+    salida.push(p);
+  }
+  return salida;
+}
+
+/**
+ * Barra de páginas. Queda pegada al borde inferior de la pantalla mientras se
+ * ve la lista, para pasar de página desde cualquier punto; al cambiar, la
+ * pantalla sube al comienzo de la lista para leerla desde arriba.
+ */
 export function Paginacion({ datos, alCambiar }: { datos: DatosPaginacion; alCambiar: (p: number) => void }) {
+  const ref = useRef<HTMLElement>(null);
   if (datos.total === 0) return null;
+  const totalPaginas = Math.max(1, datos.totalPaginas);
   const desde = (datos.pagina - 1) * datos.porPagina + 1;
   const hasta = Math.min(datos.total, datos.pagina * datos.porPagina);
+  const ir = (p: number) => {
+    if (p < 1 || p > totalPaginas || p === datos.pagina) return;
+    alCambiar(p);
+    const nav = ref.current;
+    const lista = nav?.closest('.seccion') ?? nav?.previousElementSibling;
+    if (lista && lista.getBoundingClientRect().top < 0) {
+      const suave = !window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+      lista.scrollIntoView({ behavior: suave ? 'smooth' : 'auto', block: 'start' });
+    }
+  };
   return (
-    <nav className="paginacion" aria-label="Paginación">
-      <span className="num">
-        {desde}–{hasta} de {datos.total}
+    <nav ref={ref} className="paginacion" aria-label="Paginación">
+      <span className="num paginacion-rango">
+        {cantidad(desde)}–{cantidad(hasta)} de {cantidad(datos.total)}
       </span>
-      <div className="acciones">
-        <Boton variante="secundario" pequeno disabled={datos.pagina <= 1} onClick={() => alCambiar(datos.pagina - 1)}>
-          Anterior
-        </Boton>
-        <Boton variante="secundario" pequeno disabled={datos.pagina >= datos.totalPaginas} onClick={() => alCambiar(datos.pagina + 1)}>
-          Siguiente
-        </Boton>
-      </div>
+      {totalPaginas > 1 ? (
+        <div className="paginacion-botones">
+          <Boton variante="secundario" pequeno disabled={datos.pagina <= 1} onClick={() => ir(datos.pagina - 1)}>
+            <Icono nombre="atras" tamano={16} />
+            Anterior
+          </Boton>
+          <ol className="paginacion-numeros">
+            {paginasVisibles(datos.pagina, totalPaginas).map((p, i) =>
+              p === '…' ? (
+                <li key={`s${i}`} className="paginacion-salto" aria-hidden="true">
+                  …
+                </li>
+              ) : (
+                <li key={p} className={p === datos.pagina ? 'actual' : undefined}>
+                  <button type="button" className="num" aria-current={p === datos.pagina ? 'page' : undefined} aria-label={`Página ${p}`} onClick={() => ir(p)}>
+                    {p}
+                  </button>
+                </li>
+              ),
+            )}
+          </ol>
+          <Boton variante="secundario" pequeno disabled={datos.pagina >= totalPaginas} onClick={() => ir(datos.pagina + 1)}>
+            Siguiente
+            <Icono nombre="atras" tamano={16} style={{ transform: 'scaleX(-1)' }} />
+          </Boton>
+        </div>
+      ) : null}
     </nav>
   );
 }
