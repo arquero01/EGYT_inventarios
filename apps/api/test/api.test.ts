@@ -68,6 +68,13 @@ describe('Proyectos (RF-01, RF-02, RF-05)', () => {
     expect(ficha.equipos).toHaveLength(3);
     expect(ficha.resumen).toMatchObject({ total: 3, instalados: 2, enStock: 1 });
     expect(ficha.usuariosAtendidos).toBe(1);
+    // Tablero del proyecto (como el de Inicio).
+    expect(ficha.resumen).toMatchObject({ enBodega: 1, enCampo: 2 });
+    const paneles = ficha.porTipo.find((t: { tipo: string }) => t.tipo === 'PANEL_SOLAR');
+    expect(paneles).toMatchObject({ cantidad: 1, instalados: 2, enMantenimiento: 0, dadosDeBaja: 0, total: 3 });
+    expect(ficha.porTipo).toHaveLength(6);
+    expect(ficha.reposiciones).toBe(0);
+    expect(ficha.porZona).toEqual([]);
 
     const lista = (await obtener('/proyectos')).json();
     expect(lista.datos.find((p: { id: string }) => p.id === proyectoId).resumen.total).toBe(3);

@@ -171,9 +171,14 @@ export interface ProyectoEnLista {
 
 export interface FichaProyecto {
   proyecto: Omit<ProyectoEnLista, 'resumen'> & { descripcion: string | null };
-  resumen: ResumenProyecto;
+  resumen: ResumenProyecto & { enBodega: number; enCampo: number };
   usuariosAtendidos: number;
-  equipos: { id: string; tipo: TipoEquipo; tipoNombre: string; marca: string; modelo: string; serial: string; estado: EstadoEquipo; estadoNombre: string }[];
+  /** Equipos entregados como reposición dentro del proyecto. */
+  reposiciones: number;
+  porTipo: StockPorTipo['datos'];
+  porZona: { zona: string; equipos: number }[];
+  /** Los primeros 20; el resto se ve en Equipos con el filtro del proyecto. */
+  equipos: { id: string; tipo: TipoEquipo; tipoNombre: string; marca: string | null; modelo: string | null; serial: string; estado: EstadoEquipo; estadoNombre: string }[];
 }
 
 export interface BodegaEnLista {
@@ -194,9 +199,43 @@ export interface ArticuloConCantidad {
   cantidad: number;
 }
 
+export interface UnidadEnBodega {
+  id: string;
+  serial: string;
+  serialFabricante: string | null;
+  estado: EstadoEquipo;
+  estadoNombre: string;
+  descripcion: string | null;
+  zona: string | null;
+  pendientes: string[];
+  garantiaHasta: string | null;
+  valorPagado: number | null;
+  fechaIngreso: string;
+  proyecto: string | null;
+}
+
+/** Equipos de una bodega con la misma especificación (tipo, marca, modelo y potencia). */
+export interface EspecificacionBodega {
+  clave: string;
+  tipo: TipoEquipo;
+  tipoNombre: string;
+  marca: string | null;
+  modelo: string | null;
+  potencia: number | null;
+  unidad: string | null;
+  cantidad: number;
+  porEstado: Partial<Record<EstadoEquipo, number>>;
+  valorTotal: number;
+  conValor: number;
+  equipos: UnidadEnBodega[];
+}
+
 export interface DetalleBodega {
   bodega: { id: string; nombre: string; municipio: string; departamento: string; direccion: string | null };
   equipos: { tipo: TipoEquipo; tipoNombre: string; estado: EstadoEquipo; estadoNombre: string; cantidad: number }[];
+  especificaciones: EspecificacionBodega[];
+  totalEquipos: number;
+  recortado: boolean;
   articulos: ArticuloConCantidad[];
   aviso?: Aviso;
 }

@@ -14,7 +14,11 @@ export function Guias() {
   const [params, setParams] = useSearchParams();
   const tipo = params.get('tipo') ?? '';
   const pagina = params.get('pagina') ?? '1';
-  const lista = useLectura<ListaMovimientos>(`/movimientos?porPagina=25&pagina=${pagina}${tipo ? `&tipo=${tipo}` : ''}`);
+  // Desde la ficha de un proyecto se llega con ?proyectoId=… para ver solo sus guías.
+  const proyectoId = params.get('proyectoId') ?? '';
+  const lista = useLectura<ListaMovimientos>(
+    `/movimientos?porPagina=25&pagina=${pagina}${tipo ? `&tipo=${tipo}` : ''}${proyectoId ? `&proyectoId=${proyectoId}` : ''}`,
+  );
   const fijar = (clave: string, valor: string) => {
     const n = new URLSearchParams(params);
     if (valor) n.set(clave, valor);
@@ -37,6 +41,14 @@ export function Guias() {
         </>
       }
     >
+      {proyectoId ? (
+        <p className="filtro-activo">
+          Solo las guías de un proyecto.{' '}
+          <button type="button" className="enlace" onClick={() => fijar('proyectoId', '')}>
+            Ver todas
+          </button>
+        </p>
+      ) : null}
       <div style={{ maxWidth: 260, marginBottom: 16 }}>
         <Lista etiqueta="Tipo" clase="visualmente-oculto-etiqueta" valor={tipo} alCambiar={(v) => fijar('tipo', v)} vacia="Todos los tipos" opciones={TIPOS_MOVIMIENTO.map((t) => ({ valor: t, etiqueta: NOMBRE_MOVIMIENTO[t] }))} />
       </div>

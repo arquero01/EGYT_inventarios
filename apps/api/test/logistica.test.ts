@@ -57,6 +57,23 @@ describe('Bodegas (RL-01, RL-11)', () => {
     expect(r.aviso.codigo).toBe('RL-11');
     expect((await obtener('/bodegas')).json().datos.some((b: { id: string }) => b.id === id)).toBe(true);
   });
+
+  it('muestra las especificaciones de los equipos agrupadas, con cada unidad', async () => {
+    const bodega = await crearBodega();
+    const proyecto = await crearProyecto();
+    await ok('REGISTRAR_INGRESO', datosIngreso(proyecto, { bodegaId: bodega }));
+    await ok('REGISTRAR_INGRESO', datosIngreso(proyecto, { bodegaId: bodega }));
+    await ok('REGISTRAR_INGRESO', datosIngreso(proyecto, { bodegaId: bodega, tipo: 'BATERIA_GEL', marca: 'Ritar', modelo: 'DG12-200', potencia: 200, unidad: 'Ah' }));
+    const r = (await obtener(`/bodegas/${bodega}`)).json();
+    expect(r.totalEquipos).toBe(3);
+    expect(r.recortado).toBe(false);
+    expect(r.especificaciones).toHaveLength(2);
+    const paneles = r.especificaciones.find((g: { tipo: string }) => g.tipo === 'PANEL_SOLAR');
+    expect(paneles).toMatchObject({ marca: 'Jinko', modelo: 'Tiger Neo 450', potencia: 450, unidad: 'W', cantidad: 2, porEstado: { EN_STOCK: 2 }, valorTotal: 1040000 });
+    expect(paneles.equipos).toHaveLength(2);
+    expect(paneles.equipos[0]).toMatchObject({ estado: 'EN_STOCK', valorPagado: 520000 });
+    expect(paneles.equipos[0].serial).toMatch(/^JK-/);
+  });
 });
 
 describe('Equipos con serial: ingreso, despacho, traslado y devolución', () => {

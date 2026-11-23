@@ -1,7 +1,7 @@
 import { Link } from "react-router";
 import { NOMBRE_COMANDO_WEB } from "../nombres.ts";
 import { pedir } from "../api.ts";
-import { cantidad, fechaHora } from "../formato.ts";
+import { fechaHora } from "../formato.ts";
 import { useEsAdmin, useFormulario, useLectura } from "../ganchos.ts";
 import type {
   Conflicto,
@@ -19,36 +19,12 @@ import {
   Vacio,
 } from "../ui/componentes.tsx";
 import { Pagina } from "../ui/componentes.tsx";
-
-const TRAMOS = [
-  {
-    clave: "enStock",
-    estado: "EN_STOCK",
-    rotulo: "En stock",
-    color: "var(--logo-1)",
-  },
-  {
-    clave: "instalados",
-    estado: "INSTALADO",
-    rotulo: "Instalados",
-    color: "#1fa874",
-  },
-  {
-    clave: "enMantenimiento",
-    estado: "EN_MANTENIMIENTO",
-    rotulo: "En mantenimiento",
-    color: "var(--atencion)",
-  },
-  {
-    clave: "dadosDeBaja",
-    estado: "DADO_DE_BAJA",
-    rotulo: "Dados de baja",
-    color: "#9fb0c0",
-  },
-] as const;
-
-const celda = (n: number, a: string) =>
-  n > 0 ? <Link to={a}>{cantidad(n)}</Link> : <span className="suave">0</span>;
+import {
+  ListaGuias,
+  ListaZonas,
+  RepartoEquipos,
+  TablaPorTipo,
+} from "../ui/Tablero.tsx";
 
 export function Inicio() {
   const resumen = useLectura<ResumenInventario>("/inventario/resumen");
@@ -89,46 +65,7 @@ export function Inicio() {
               equipos que llegan del proveedor.
             </Vacio>
           ) : (
-            <div className="superficie reparto">
-              <div className="reparto-total">
-                <strong className="num">{cantidad(r.total)}</strong>
-                <span className="suave">equipos con serial</span>
-              </div>
-              <div
-                className="reparto-barra"
-                role="img"
-                aria-label={TRAMOS.map(
-                  (t) => `${t.rotulo}: ${r[t.clave]}`,
-                ).join(", ")}
-              >
-                {TRAMOS.filter((t) => r[t.clave] > 0).map((t) => (
-                  <span
-                    key={t.clave}
-                    style={{ flexGrow: r[t.clave], background: t.color }}
-                  />
-                ))}
-              </div>
-              <div className="reparto-leyenda">
-                {TRAMOS.map((t) => (
-                  <Link
-                    key={t.clave}
-                    to={`/inventario?estado=${t.estado}`}
-                    style={{ borderColor: t.color }}
-                  >
-                    <span className="valor">{cantidad(r[t.clave])}</span>
-                    <span className="rotulo">{t.rotulo}</span>
-                  </Link>
-                ))}
-              </div>
-              <div className="lugares">
-                <span>
-                  <b>{cantidad(r.enBodega)}</b> en bodegas
-                </span>
-                <span>
-                  <b>{cantidad(r.enCampo)}</b> en campo
-                </span>
-              </div>
-            </div>
+            <RepartoEquipos r={r} />
           )
         }
       </Lectura>
@@ -138,89 +75,7 @@ export function Inicio() {
       <div className="columnas">
         <Seccion titulo="Equipos por tipo">
           <Lectura estado={stock}>
-            {(s) => (
-              <div className="tabla-envoltura">
-                <table className="tabla tabla-por-tipo">
-                  <thead>
-                    <tr>
-                      <th>Tipo de equipo</th>
-                      <th className="derecha">En stock</th>
-                      <th className="derecha">Instalados</th>
-                      <th className="derecha">Mantenim.</th>
-                      <th className="derecha">De baja</th>
-                      <th className="derecha">Total</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {s.datos.map((t) => (
-                      <tr key={t.tipo}>
-                        <td>
-                          <Link to={`/inventario?tipo=${t.tipo}`}>
-                            {t.tipoNombre}
-                          </Link>
-                        </td>
-                        <td className="derecha num">
-                          {t.cantidad > 0 ? (
-                            <Link
-                              to={`/inventario?tipo=${t.tipo}&estado=EN_STOCK`}
-                            >
-                              {cantidad(t.cantidad)}
-                            </Link>
-                          ) : (
-                            // RF-10: el aviso de "sin stock" se ve al pasar el mouse y en la etiqueta.
-                            <span
-                              className="sin-stock"
-                              title={t.aviso?.mensaje}
-                            >
-                              Sin stock
-                            </span>
-                          )}
-                        </td>
-                        <td className="derecha num">
-                          {celda(
-                            t.instalados,
-                            `/inventario?tipo=${t.tipo}&estado=INSTALADO`,
-                          )}
-                        </td>
-                        <td className="derecha num">
-                          {celda(
-                            t.enMantenimiento,
-                            `/inventario?tipo=${t.tipo}&estado=EN_MANTENIMIENTO`,
-                          )}
-                        </td>
-                        <td className="derecha num">
-                          {celda(
-                            t.dadosDeBaja,
-                            `/inventario?tipo=${t.tipo}&estado=DADO_DE_BAJA`,
-                          )}
-                        </td>
-                        <td className="derecha num">
-                          <b>{cantidad(t.total)}</b>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                  <tfoot>
-                    <tr>
-                      <th>Total</th>
-                      {(
-                        [
-                          "cantidad",
-                          "instalados",
-                          "enMantenimiento",
-                          "dadosDeBaja",
-                          "total",
-                        ] as const
-                      ).map((k) => (
-                        <th key={k} className="derecha num">
-                          {cantidad(s.datos.reduce((a, t) => a + t[k], 0))}
-                        </th>
-                      ))}
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
-            )}
+            {(s) => <TablaPorTipo datos={s.datos} />}
           </Lectura>
           <p className="suave nota-stock">
             <b>En stock</b> son los equipos disponibles para instalar. Los del
@@ -232,21 +87,7 @@ export function Inicio() {
         <div>
           {zonas.datos && zonas.datos.datos.length > 0 ? (
             <Seccion titulo="Equipos por zona">
-              <ul className="lista superficie lista-zonas">
-                {zonas.datos.datos
-                  .slice()
-                  .sort((a, b) => b.equipos - a.equipos)
-                  .map((z) => (
-                    <li key={z.zona}>
-                      <Link
-                        to={`/inventario?zona=${encodeURIComponent(z.zona)}`}
-                      >
-                        {z.zona}
-                      </Link>
-                      <span className="num">{cantidad(z.equipos)}</span>
-                    </li>
-                  ))}
-              </ul>
+              <ListaZonas datos={zonas.datos.datos} />
             </Seccion>
           ) : null}
 
@@ -254,39 +95,7 @@ export function Inicio() {
             titulo="Últimas guías"
             accion={<Link to="/guias">Ver todas</Link>}
           >
-            <Lectura estado={guias}>
-              {(g) =>
-                g.datos.length === 0 ? (
-                  <Vacio titulo="Sin movimientos todavía.">
-                    Cada ingreso, despacho, traslado o devolución genera una
-                    guía numerada.
-                  </Vacio>
-                ) : (
-                  <ul className="lista superficie">
-                    {g.datos.map((m) => (
-                      <li key={m.id}>
-                        <Link className="serial" to={`/guias/${m.numero}`}>
-                          {m.numero}
-                        </Link>
-                        <span>{m.tipoNombre}</span>
-                        <span className="detalle">
-                          {[m.origen ?? "Proveedor", m.destino ?? m.proyecto]
-                            .filter(Boolean)
-                            .join(" a ")}
-                          {m.equipos
-                            ? `, ${m.equipos} equipo${m.equipos === 1 ? "" : "s"}`
-                            : ""}
-                          {m.articulos
-                            ? `, ${m.articulos} artículo${m.articulos === 1 ? "" : "s"}`
-                            : ""}
-                          . {fechaHora(m.ocurridoEn)}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                )
-              }
-            </Lectura>
+            <Lectura estado={guias}>{(g) => <ListaGuias guias={g} />}</Lectura>
           </Seccion>
         </div>
       </div>

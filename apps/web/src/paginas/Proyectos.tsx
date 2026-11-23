@@ -3,12 +3,14 @@ import { Link, useNavigate, useParams } from 'react-router';
 import { nuevoId } from '../api.ts';
 import { cantidad, fecha, hoy } from '../formato.ts';
 import { useFormulario, useLectura } from '../ganchos.ts';
-import type { FichaProyecto, ProyectoEnLista } from '../tipos.ts';
-import { Area, Boton, BotonEnlace, Cajon, Campo, Datos, ErrorFormulario, FilaVinculada, InsigniaEstado, Lectura, Pagina, Seccion, Vacio } from '../ui/componentes.tsx';
+import type { FichaProyecto, ListaMovimientos, ProyectoEnLista } from '../tipos.ts';
+import { Area, Boton, BotonEnlace, Cajon, Campo, ErrorFormulario, FilaVinculada, InsigniaEstado, Lectura, Pagina, Seccion, Vacio } from '../ui/componentes.tsx';
+import { ListaGuias, ListaZonas, RepartoEquipos, TablaPorTipo } from '../ui/Tablero.tsx';
 
 /** RF-01, RF-02 y RF-05: proyectos de electrificación y sus equipos. */
 export function Proyectos() {
   const lista = useLectura<{ datos: ProyectoEnLista[] }>('/proyectos');
+  const sinProyecto = useLectura<{ paginacion: { total: number } }>('/equipos?sinProyecto=si&porPagina=1');
   const [nuevo, setNuevo] = useState(false);
   const navegar = useNavigate();
 
@@ -27,6 +29,31 @@ export function Proyectos() {
           datos.length === 0 ? (
             <Vacio titulo="Todavía no hay proyectos." accion={<Boton onClick={() => setNuevo(true)}>Crear proyecto</Boton>} />
           ) : (
+            <>
+            <div className="resumen-historico resumen-proyectos">
+              <div className="cifra">
+                <b className="num">{cantidad(datos.length)}</b>
+                <span>{datos.length === 1 ? 'proyecto' : 'proyectos'}</span>
+              </div>
+              <div className="cifra">
+                <b className="num">{cantidad(datos.reduce((a, p) => a + p.resumen.total, 0))}</b>
+                <span>equipos en proyectos</span>
+              </div>
+              <div className="cifra">
+                <b className="num">{cantidad(datos.reduce((a, p) => a + p.resumen.instalados, 0))}</b>
+                <span>instalados</span>
+              </div>
+              <div className="cifra">
+                <b className="num">{cantidad(datos.reduce((a, p) => a + p.resumen.enStock, 0))}</b>
+                <span>en stock para instalar</span>
+              </div>
+              {sinProyecto.datos && sinProyecto.datos.paginacion.total > 0 ? (
+                <Link className="cifra atencion" to="/inventario?sinProyecto=si">
+                  <b className="num">{cantidad(sinProyecto.datos.paginacion.total)}</b>
+                  <span>equipos sin proyecto: asígneles uno</span>
+                </Link>
+              ) : null}
+            </div>
             <div className="tabla-envoltura">
               <table className="tabla">
                 <thead>
@@ -60,6 +87,7 @@ export function Proyectos() {
                 </tbody>
               </table>
             </div>
+            </>
           )
         }
       </Lectura>
@@ -107,6 +135,8 @@ function NuevoProyecto({ alCerrar, alCrear }: { alCerrar: () => void; alCrear: (
 export function Proyecto() {
   const { id = '' } = useParams();
   const ficha = useLectura<FichaProyecto>(`/proyectos/${id}`);
+  const guias = useLectura<ListaMovimientos>(`/movimientos?proyectoId=${id}&porPagina=6`);
+  const filtro = `proyectoId=${id}`;
   return (
     <Lectura estado={ficha}>
       {(d) => (
@@ -123,54 +153,97 @@ export function Proyecto() {
             </>
           }
         >
-          <div className="superficie">
-            <Datos
-              pares={[
-                ['Ubicación', `${d.proyecto.vereda}, ${d.proyecto.municipio}, ${d.proyecto.departamento}`],
-                ['Inicio', fecha(d.proyecto.fechaInicio)],
-                ['Equipos', cantidad(d.resumen.total)],
-                ['Instalados', cantidad(d.resumen.instalados)],
-                ['En stock', cantidad(d.resumen.enStock)],
-                ['En mantenimiento', cantidad(d.resumen.enMantenimiento)],
-                ['Usuarios atendidos', cantidad(d.usuariosAtendidos)],
-              ]}
-            />
+          <p className="datos-proyecto">
+            <span>
+              {d.proyecto.vereda}, {d.proyecto.municipio}, {d.proyecto.departamento}
+            </span>
+            <span>Inicio: {fecha(d.proyecto.fechaInicio)}</span>
+            <span>
+              <b className="num">{cantidad(d.usuariosAtendidos)}</b> usuarios atendidos
+            </span>
+            {d.reposiciones > 0 ? (
+              <Link to={`/inventario?${filtro}&entrega=REPOSICION`}>
+                <b className="num">{cantidad(d.reposiciones)}</b> {d.reposiciones === 1 ? 'reposición' : 'reposiciones'}
+              </Link>
+            ) : null}
+          </p>
+
+          {d.resumen.total === 0 ? (
+            <Vacio
+              titulo="Este proyecto aún no tiene equipos."
+              accion={<BotonEnlace a={`/guias/nueva/DESPACHO?proyectoId=${d.proyecto.id}`}>Despachar equipos</BotonEnlace>}
+            >
+              Despache equipos desde una bodega, ingrese equipos nuevos para el proyecto o asígneselo a los equipos del histórico desde su hoja de vida.
+            </Vacio>
+          ) : (
+            <RepartoEquipos r={d.resumen} filtro={filtro} texto="equipos en el proyecto" />
+          )}
+
+          <div className="columnas">
+            <Seccion titulo="Equipos por tipo">
+              <TablaPorTipo datos={d.porTipo} filtro={filtro} />
+            </Seccion>
+            <div>
+              {d.porZona.length > 0 ? (
+                <Seccion titulo="Equipos por zona">
+                  <ListaZonas datos={d.porZona} filtro={filtro} />
+                </Seccion>
+              ) : null}
+              <Seccion titulo="Últimas guías del proyecto" accion={<Link to={`/guias?proyectoId=${d.proyecto.id}`}>Ver todas</Link>}>
+                <Lectura estado={guias}>{(g) => <ListaGuias guias={g} />}</Lectura>
+              </Seccion>
+            </div>
           </div>
-          <Seccion titulo="Equipos del proyecto" accion={<Link to={`/equipos/nuevo?proyectoId=${d.proyecto.id}`}>Ingresar equipo para este proyecto</Link>}>
+
+          <Seccion
+            titulo="Equipos del proyecto"
+            accion={
+              <span className="acciones-enlace">
+                {d.resumen.total > 0 ? <Link to={`/inventario?${filtro}`}>Ver todos con filtros</Link> : null}
+                <Link to={`/equipos/nuevo?proyectoId=${d.proyecto.id}`}>Ingresar equipo para este proyecto</Link>
+              </span>
+            }
+          >
             {d.equipos.length === 0 ? (
               <Vacio titulo="Este proyecto aún no tiene equipos." />
             ) : (
-              <div className="tabla-envoltura">
-                <table className="tabla">
-                  <thead>
-                    <tr>
-                      <th>Serial</th>
-                      <th>Equipo</th>
-                      <th>Estado</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {d.equipos.map((e) => (
-                      <FilaVinculada key={e.id} a={`/equipos/${e.id}`}>
-                        <td>
-                          <Link className="serial" to={`/equipos/${e.id}`}>
-                            {e.serial}
-                          </Link>
-                        </td>
-                        <td>
-                          {e.tipoNombre}
-                          <span className="secundaria">
-                            {e.marca} {e.modelo}
-                          </span>
-                        </td>
-                        <td>
-                          <InsigniaEstado estado={e.estado} />
-                        </td>
-                      </FilaVinculada>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <>
+                <div className="tabla-envoltura">
+                  <table className="tabla">
+                    <thead>
+                      <tr>
+                        <th>Serial</th>
+                        <th>Equipo</th>
+                        <th>Estado</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {d.equipos.map((e) => (
+                        <FilaVinculada key={e.id} a={`/equipos/${e.id}`}>
+                          <td>
+                            <Link className="serial" to={`/equipos/${e.id}`}>
+                              {e.serial}
+                            </Link>
+                          </td>
+                          <td>
+                            {e.tipoNombre}
+                            <span className="secundaria">{[e.marca, e.modelo].filter(Boolean).join(' ')}</span>
+                          </td>
+                          <td>
+                            <InsigniaEstado estado={e.estado} />
+                          </td>
+                        </FilaVinculada>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                {d.resumen.total > d.equipos.length ? (
+                  <p className="suave" style={{ fontSize: 'var(--t-s)' }}>
+                    Se muestran {d.equipos.length} de {cantidad(d.resumen.total)}. <Link to={`/inventario?${filtro}`}>Ver todos en Equipos</Link>, donde
+                    se pueden buscar y filtrar.
+                  </p>
+                ) : null}
+              </>
             )}
           </Seccion>
         </Pagina>

@@ -1,9 +1,10 @@
 import { useState, type FormEvent } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { nuevoId } from '../api.ts';
-import { cantidad } from '../formato.ts';
+import { ESTADOS_EQUIPO, NOMBRE_ESTADO, type TipoEquipo } from '@egt/domain';
+import { cantidad, fecha, pesos } from '../formato.ts';
 import { useFormulario, useLectura } from '../ganchos.ts';
-import type { BodegaEnLista, DetalleBodega } from '../tipos.ts';
+import type { BodegaEnLista, DetalleBodega, EspecificacionBodega } from '../tipos.ts';
 import { Aviso, Boton, BotonEnlace, Cajon, Campo, ErrorFormulario, FilaVinculada, InsigniaEstado, Lectura, Pagina, Seccion, Vacio } from '../ui/componentes.tsx';
 
 /** RL-01: bodegas de la empresa y lo que hay en cada una. */
@@ -117,35 +118,17 @@ export function Bodega() {
           }
         >
           {d.aviso ? <Aviso tipo="info">{d.aviso.mensaje}</Aviso> : null}
+          <Seccion
+            titulo={`Equipos (${cantidad(d.totalEquipos)})`}
+            accion={d.totalEquipos > 0 ? <Link to={`/inventario?bodegaId=${d.bodega.id}`}>Ver en Equipos, con filtros</Link> : null}
+          >
+            {d.totalEquipos === 0 ? (
+              <Vacio titulo="No hay equipos en esta bodega." accion={<Link to={`/equipos/nuevo?bodegaId=${d.bodega.id}`}>Ingresar equipo</Link>} />
+            ) : (
+              <EspecificacionesBodega grupos={d.especificaciones} recortado={d.recortado} />
+            )}
+          </Seccion>
           <div className="columnas">
-            <Seccion titulo="Equipos" accion={<Link to={`/inventario?bodegaId=${d.bodega.id}`}>Ver uno por uno</Link>}>
-              {d.equipos.length === 0 ? (
-                <Vacio titulo="No hay equipos en esta bodega." accion={<Link to={`/equipos/nuevo?bodegaId=${d.bodega.id}`}>Ingresar equipo</Link>} />
-              ) : (
-                <div className="tabla-envoltura">
-                  <table className="tabla">
-                    <thead>
-                      <tr>
-                        <th>Tipo</th>
-                        <th>Estado</th>
-                        <th className="derecha">Cantidad</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {d.equipos.map((e) => (
-                        <tr key={`${e.tipo}-${e.estado}`}>
-                          <td>{e.tipoNombre}</td>
-                          <td>
-                            <InsigniaEstado estado={e.estado} />
-                          </td>
-                          <td className="derecha num">{cantidad(e.cantidad)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </Seccion>
             <Seccion titulo="Artículos" accion={<Link to={`/articulos/ingreso?bodegaId=${d.bodega.id}`}>Registrar ingreso</Link>}>
               {d.articulos.length === 0 ? (
                 <Vacio titulo="No hay artículos en esta bodega." />
@@ -179,5 +162,123 @@ export function Bodega() {
         </Pagina>
       )}
     </Lectura>
+  );
+}
+
+/**
+ * Los equipos de la bodega agrupados por especificación (tipo, marca, modelo
+ * y potencia). Cada grupo se abre para ver sus unidades una por una.
+ */
+function EspecificacionesBodega({ grupos, recortado }: { grupos: EspecificacionBodega[]; recortado: boolean }) {
+  const [tipo, setTipo] = useState<TipoEquipo | ''>('');
+  const [busqueda, setBusqueda] = useState('');
+  const tipos = [...new Map(grupos.map((g) => [g.tipo, g.tipoNombre])).entries()];
+  const texto = busqueda.trim().toLowerCase();
+  const visibles = grupos
+    .filter((g) => !tipo || g.tipo === tipo)
+    .map((g) => {
+      if (!texto) return g;
+      const enGrupo = [g.marca, g.modelo, g.tipoNombre].filter(Boolean).join(' ').toLowerCase().includes(texto);
+      const equipos = enGrupo
+        ? g.equipos
+        : g.equipos.filter((u) => [u.serial, u.serialFabricante, u.descripcion, u.proyecto].filter(Boolean).join(' ').toLowerCase().includes(texto));
+      return { ...g, equipos };
+    })
+    .filter((g) => g.equipos.length > 0);
+
+  return (
+    <div className="especificaciones">
+      <div className="especificaciones-filtros">
+        <div className="opciones-radio" role="radiogroup" aria-label="Tipo de equipo">
+          <label>
+            <input type="radio" name="tipo-bodega" checked={tipo === ''} onChange={() => setTipo('')} />
+            Todos
+          </label>
+          {tipos.map(([t, nombre]) => (
+            <label key={t}>
+              <input type="radio" name="tipo-bodega" checked={tipo === t} onChange={() => setTipo(t)} />
+              {nombre} ({cantidad(grupos.filter((g) => g.tipo === t).reduce((a, g) => a + g.cantidad, 0))})
+            </label>
+          ))}
+        </div>
+        <Campo etiqueta="Buscar en esta bodega" valor={busqueda} alCambiar={setBusqueda} marcador="Serial, marca, modelo o descripción" autocompletar="off" />
+      </div>
+
+      {visibles.length === 0 ? <p className="suave">Ningún equipo coincide con la búsqueda.</p> : null}
+      {visibles.map((g) => (
+        <details key={g.clave} className="grupo-espec" open={Boolean(texto)}>
+          <summary>
+            <span className="espec-nombre">
+              <b>{g.tipoNombre}</b>
+              <span className="secundaria">
+                {[g.marca ?? 'Sin marca', g.modelo].filter(Boolean).join(' · ')}
+                {g.potencia != null ? ` · ${cantidad(g.potencia)} ${g.unidad ?? ''}` : ' · potencia sin registrar'}
+              </span>
+            </span>
+            <span className="espec-estados">
+              {ESTADOS_EQUIPO.filter((e) => g.porEstado[e]).map((e) => (
+                <span key={e} className={`insignia ${e}`}>
+                  {g.porEstado[e]} {NOMBRE_ESTADO[e].toLowerCase()}
+                </span>
+              ))}
+              {g.equipos.some((u) => u.pendientes.some((p) => p.startsWith('Verificar'))) ? (
+                <span className="pendiente-dato">
+                  {g.equipos.filter((u) => u.pendientes.some((p) => p.startsWith('Verificar'))).length} por verificar
+                </span>
+              ) : null}
+            </span>
+            <span className="espec-cantidad num">
+              <b>{cantidad(texto ? g.equipos.length : g.cantidad)}</b>
+              <span className="secundaria">{g.conValor > 0 ? pesos(g.valorTotal) : 'unidades'}</span>
+            </span>
+          </summary>
+          <div className="tabla-envoltura">
+            <table className="tabla">
+              <thead>
+                <tr>
+                  <th>Serial</th>
+                  <th>Descripción</th>
+                  <th>Estado</th>
+                  <th>Proyecto</th>
+                  <th>Garantía</th>
+                  <th className="derecha">Valor</th>
+                </tr>
+              </thead>
+              <tbody>
+                {g.equipos.map((u) => (
+                  <tr key={u.id}>
+                    <td>
+                      <Link className="serial" to={`/equipos/${u.id}`}>
+                        {u.serial}
+                      </Link>
+                      {u.serialFabricante ? <span className="secundaria">Fabricante: {u.serialFabricante}</span> : null}
+                    </td>
+                    <td className="espec-descripcion">
+                      {u.descripcion ?? <span className="suave">—</span>}
+                      {u.pendientes.length > 0 ? (
+                        <span className={`secundaria ${u.pendientes.some((p) => p.startsWith('Verificar')) ? 'texto-verificar' : ''}`}>
+                          Por completar o verificar: {u.pendientes.join(', ')}
+                        </span>
+                      ) : null}
+                    </td>
+                    <td>
+                      <InsigniaEstado estado={u.estado} />
+                    </td>
+                    <td>{u.proyecto ?? <span className="suave">Sin proyecto</span>}</td>
+                    <td className="num">{u.garantiaHasta ? fecha(u.garantiaHasta) : <span className="suave">—</span>}</td>
+                    <td className="derecha num">{u.valorPagado != null ? pesos(u.valorPagado) : <span className="suave">—</span>}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </details>
+      ))}
+      {recortado ? (
+        <p className="suave" style={{ fontSize: 'var(--t-s)' }}>
+          La bodega tiene muchos equipos: aquí se listan los primeros mil. Vea todos en Equipos, con filtros.
+        </p>
+      ) : null}
+    </div>
   );
 }

@@ -6,6 +6,8 @@ import {
   NOMBRE_MOVIMIENTO,
   NOMBRE_TIPO_EQUIPO,
   errorNoEncontrado,
+  type EstadoEquipo,
+  type TipoEquipo,
   type TipoMovimiento,
 } from '@egt/domain';
 import type { Ejecutor } from '../db/cliente.ts';
@@ -42,6 +44,24 @@ export async function listarBodegas(db: Ejecutor) {
 }
 
 /** Lo que hay hoy en una bodega: equipos por tipo y estado, y artículos con su cantidad. */
+/** Unidades que se listan una por una en la ficha de la bodega; los conteos siempre son completos. */
+const UNIDADES_EN_BODEGA = 1000;
+
+interface Especificacion {
+  clave: string;
+  tipo: TipoEquipo;
+  tipoNombre: string;
+  marca: string | null;
+  modelo: string | null;
+  potencia: number | null;
+  unidad: string | null;
+  cantidad: number;
+  porEstado: Partial<Record<EstadoEquipo, number>>;
+  valorTotal: number;
+  conValor: number;
+  equipos: Record<string, unknown>[];
+}
+
 export async function detalleBodega(db: Ejecutor, bodegaId: string) {
   const [bodega] = await db.select().from(bodegas).where(eq(bodegas.id, bodegaId));
   if (!bodega) throw errorNoEncontrado('RL-01-NO-EXISTE');
@@ -60,10 +80,71 @@ export async function detalleBodega(db: Ejecutor, bodegaId: string) {
     .where(and(eq(existencias.bodegaId, bodegaId), gt(existencias.cantidad, 0)))
     .orderBy(asc(articulos.codigo));
 
+  // Especificaciones: los equipos de la bodega agrupados por tipo, marca, modelo y potencia,
+  // con cada unidad (serial, descripción, estado, lo que falta por completar…).
+  const unidades = await db
+    .select({
+      id: equipos.id,
+      serial: equipos.serial,
+      serialFabricante: equipos.serialFabricante,
+      tipo: equipos.tipo,
+      marca: equipos.marca,
+      modelo: equipos.modelo,
+      potencia: equipos.potencia,
+      unidad: equipos.unidad,
+      estado: equipos.estado,
+      descripcion: equipos.descripcion,
+      zona: equipos.zona,
+      pendientes: equipos.pendientes,
+      garantiaHasta: equipos.garantiaHasta,
+      valorPagado: equipos.valorPagado,
+      fechaIngreso: equipos.fechaIngreso,
+      proyecto: proyectos.nombre,
+    })
+    .from(equipos)
+    .leftJoin(proyectos, eq(proyectos.id, equipos.proyectoId))
+    .where(eq(equipos.bodegaId, bodegaId))
+    .orderBy(asc(equipos.tipo), asc(equipos.marca), asc(equipos.modelo), asc(equipos.potencia), asc(equipos.serial))
+    .limit(UNIDADES_EN_BODEGA);
+  const totalEquipos = porTipo.reduce((a, f) => a + f.cantidad, 0);
+  const grupos = new Map<string, Especificacion>();
+  for (const u of unidades) {
+    const clave = [u.tipo, u.marca ?? '', u.modelo ?? '', u.potencia ?? '', u.unidad ?? ''].join('|');
+    const g =
+      grupos.get(clave) ??
+      ({
+        clave,
+        tipo: u.tipo,
+        tipoNombre: NOMBRE_TIPO_EQUIPO[u.tipo],
+        marca: u.marca,
+        modelo: u.modelo,
+        potencia: u.potencia,
+        unidad: u.unidad,
+        cantidad: 0,
+        porEstado: {},
+        valorTotal: 0,
+        conValor: 0,
+        equipos: [],
+      } satisfies Especificacion);
+    g.cantidad++;
+    g.porEstado[u.estado] = (g.porEstado[u.estado] ?? 0) + 1;
+    if (u.valorPagado !== null) {
+      g.valorTotal += u.valorPagado;
+      g.conValor++;
+    }
+    const { tipo: _t, marca: _m, modelo: _o, potencia: _p, unidad: _u, ...resto } = u;
+    g.equipos.push({ ...resto, estadoNombre: NOMBRE_ESTADO[u.estado] });
+    grupos.set(clave, g);
+  }
+
   const vacia = porTipo.length === 0 && stock.length === 0;
   return {
     bodega: { id: bodega.id, nombre: bodega.nombre, municipio: bodega.municipio, departamento: bodega.departamento, direccion: bodega.direccion },
     equipos: porTipo.map((f) => ({ ...f, tipoNombre: NOMBRE_TIPO_EQUIPO[f.tipo], estadoNombre: NOMBRE_ESTADO[f.estado] })),
+    especificaciones: [...grupos.values()],
+    totalEquipos,
+    /** true si la bodega tiene más equipos de los que se listan uno por uno. */
+    recortado: totalEquipos > unidades.length,
     articulos: stock,
     ...(vacia ? aviso('RL-11') : {}),
   };
