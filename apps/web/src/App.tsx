@@ -12,6 +12,7 @@ import { Equipo } from './paginas/Equipo.tsx';
 import { IngresoEquipo } from './paginas/IngresoEquipo.tsx';
 import { Importar } from './paginas/Importar.tsx';
 import { Proyecto, Proyectos } from './paginas/Proyectos.tsx';
+import { UsuarioFinal, UsuariosFinales } from './paginas/UsuariosFinales.tsx';
 import { Bodega, Bodegas } from './paginas/Bodegas.tsx';
 import { Articulo, Articulos, IngresoArticulos } from './paginas/Articulos.tsx';
 import { Guia, Guias, NuevaGuia } from './paginas/Guias.tsx';
@@ -46,6 +47,8 @@ function Rutas() {
         <Route path="/equipos/:id" element={<Equipo />} />
         <Route path="/proyectos" element={<Proyectos />} />
         <Route path="/proyectos/:id" element={<Proyecto />} />
+        <Route path="/usuarios-finales" element={<UsuariosFinales />} />
+        <Route path="/usuarios-finales/:id" element={<UsuarioFinal />} />
         <Route path="/bodegas" element={<Bodegas />} />
         <Route path="/bodegas/:id" element={<Bodega />} />
         <Route path="/articulos" element={<Articulos />} />
@@ -71,6 +74,7 @@ const ENLACES: { a: string; texto: string; icono: NombreIcono; fin?: boolean }[]
   { a: '/', texto: 'Inicio', icono: 'inicio', fin: true },
   { a: '/inventario', texto: 'Equipos', icono: 'equipos' },
   { a: '/proyectos', texto: 'Proyectos', icono: 'proyectos' },
+  { a: '/usuarios-finales', texto: 'Usuarios', icono: 'usuarios' },
   { a: '/bodegas', texto: 'Bodegas', icono: 'bodegas' },
   { a: '/articulos', texto: 'Artículos', icono: 'articulos' },
   { a: '/guias', texto: 'Guías', icono: 'guias' },

@@ -47,6 +47,12 @@ No se importan las filas sin tipo de equipo, con un tipo que no existe en el sis
 
 **Celdas de color.** Las celdas pintadas en el archivo (amarillo, rojo, verde, naranja…) quedan en el equipo como «por verificar», por ejemplo *Verificar (amarillo): Nombre*; si casi toda la fila está pintada, *Verificar (rojo): toda la fila*. No cuentan el blanco ni los tintes casi blancos que trae el formato de la hoja, ni las celdas pintadas fuera de la tabla. Si el archivo ya se había importado antes, al subirlo de nuevo solo se agregan esas marcas a los equipos que ya estaban. En **Equipos → Revisión → Celdas de color por verificar** salen todos.
 
+## Usuarios (mapa)
+
+El menú **Usuarios** muestra a las personas que tienen o tuvieron equipos: cuántas hay, cuántas tienen equipo instalado, equipos instalados y reposiciones. El **mapa de Colombia** tiene una burbuja por zona (más grande, más usuarios); se puede acercar a todo el país, a las zonas o a un departamento. Tocar una burbuja, o marcarla en la lista **Zonas** de la derecha, deja abajo solo los usuarios de las zonas elegidas; la lista se busca por nombre, cédula o NIU y cada usuario tiene su ficha con todos los equipos que ha recibido.
+
+Las zonas se ubican solas por el nombre del municipio (datos del DANE, sin internet). Si el nombre existe en varios departamentos (San Miguel, Miraflores) se elige el más probable y queda «supuesta»: un administrador lo confirma o corrige en **Ubicar zonas**. El mapa se regenera con `scripts/generar-mapa-colombia.mjs`.
+
 ## Reposición
 
 Una **reposición** es cuando a un usuario se le cambia el equipo que presentó fallas (casi siempre una batería) por otro.

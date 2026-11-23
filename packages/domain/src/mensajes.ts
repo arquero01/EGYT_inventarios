@@ -48,6 +48,8 @@ export const MENSAJES = {
 
   // Importación del histórico (propio).
   'IMP-01': 'Error de validación: revise los datos del equipo en el archivo.',
+  'USU-01': 'El usuario final no existe.',
+  'ZON-01': 'Error de validación: indique la zona y el código DANE del municipio (5 dígitos).',
   'REP-01': 'Error de validación: revise los datos de la reposición.',
   'REP-02': 'El equipo que se va a reponer debe estar instalado y entregado a un usuario.',
   'REP-03': 'El equipo nuevo debe ser del mismo tipo que el que se retira (o batería por batería).',

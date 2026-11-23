@@ -329,3 +329,68 @@ export interface Conflicto {
   autor: string | null;
   error: Aviso & { detalles?: { campo: string; problema: string }[] };
 }
+
+// ── Usuarios finales ─────────────────────────────────────────────────────
+
+export interface ZonaDeUsuarios {
+  /** Nombre normalizado (minúsculas, sin tildes): sirve para filtrar. */
+  llave: string;
+  zona: string;
+  departamento: string | null;
+  usuarios: number;
+  conEquipo: number;
+  instalados: number;
+  reposiciones: number;
+  /** Municipio (código DANE) elegido por el administrador para el mapa. */
+  municipioCodigo: string | null;
+}
+
+export interface ResumenUsuarios {
+  usuarios: number;
+  conEquipo: number;
+  entregas: number;
+  instalados: number;
+  reposiciones: number;
+  zonas: ZonaDeUsuarios[];
+}
+
+export interface UsuarioFinalEnLista {
+  id: string;
+  nombre: string;
+  cedula: string;
+  telefono: string | null;
+  niu: string | null;
+  zonas: string[];
+  equiposActuales: number;
+  entregas: number;
+  reposiciones: number;
+  /** null si ninguna entrega tiene fecha (histórico sin fecha de entrega). */
+  ultimaEntrega: string | null;
+}
+
+export interface FichaUsuarioFinal {
+  usuario: { id: string; nombre: string; cedula: string; telefono: string | null; niu: string | null };
+  entregas: {
+    instalacionId: string;
+    equipoId: string;
+    serial: string;
+    tipo: TipoEquipo;
+    tipoNombre: string;
+    marca: string | null;
+    modelo: string | null;
+    estado: EstadoEquipo;
+    estadoNombre: string;
+    vigente: boolean;
+    tipoEntrega: TipoEntrega;
+    fecha: string;
+    finalizadaEn: string | null;
+    motivoFin: string | null;
+    zona: string;
+    vereda: string | null;
+    proyecto: string | null;
+    reemplazaSerial: string | null;
+    reemplazaId: string | null;
+    /** El archivo no traía la fecha de entrega: la fecha es la de la importación. */
+    sinFecha: boolean;
+  }[];
+}

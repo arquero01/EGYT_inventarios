@@ -1725,6 +1725,7 @@ button.enlace {
 .etiqueta-entrega {
   display: inline-block;
   margin-top: 2px;
+  margin-left: 6px;
   padding: 1px 8px;
   border-radius: 999px;
   font-size: var(--t-xs);
@@ -1907,4 +1908,157 @@ a.cifra:hover {
     grid-column: 1 / -1;
     grid-row: 2;
   }
+}
+
+/* ── Usuarios: mapa y zonas ──────────────────────────────────────────── */
+.usuarios-tablero {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(280px, 2fr);
+  gap: 24px;
+  align-items: start;
+}
+
+@media (max-width: 960px) {
+  .usuarios-tablero {
+    grid-template-columns: 1fr;
+  }
+}
+
+.mapa {
+  position: relative;
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--linea);
+  border-radius: 12px;
+  background: var(--superficie);
+}
+
+.mapa-cargando {
+  min-height: 420px;
+  place-items: center;
+  color: var(--tinta-suave);
+}
+
+.mapa-svg {
+  width: 100%;
+  height: auto;
+  max-height: 640px;
+  display: block;
+}
+
+.mapa-deptos path {
+  fill: #e6edf4;
+  stroke: #ffffff;
+  stroke-linejoin: round;
+}
+
+.mapa-deptos path.con-usuarios {
+  fill: #cfe0f0;
+}
+
+.mapa-deptos path:hover {
+  fill: #bcd3ea;
+}
+
+.burbuja {
+  cursor: pointer;
+  outline: none;
+}
+
+.burbuja circle {
+  fill: color-mix(in srgb, var(--azul) 55%, transparent);
+  stroke: var(--azul);
+  transition: fill 0.15s, opacity 0.15s;
+}
+
+.burbuja:hover circle,
+.burbuja:focus-visible circle {
+  fill: color-mix(in srgb, var(--azul) 80%, transparent);
+}
+
+.burbuja:focus-visible circle {
+  stroke: #0a2540;
+}
+
+.burbuja.elegida circle {
+  fill: #0a2540;
+  stroke: #ffffff;
+}
+
+.burbuja.atenuada circle {
+  opacity: 0.45;
+}
+
+.mapa-etiquetas text {
+  fill: #0a2540;
+  font-weight: 600;
+  paint-order: stroke;
+  stroke: #ffffff;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+
+.mapa-etiquetas text.elegida {
+  font-weight: 800;
+}
+
+.mapa-info {
+  display: grid;
+  gap: 2px;
+  min-height: 3.6em;
+  font-size: var(--t-s);
+}
+
+.nota-mapa {
+  margin: 8px 0 0;
+  font-size: var(--t-s);
+}
+
+.lista-zonas-elegir {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.lista-zonas-elegir label {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--linea);
+  border-radius: 10px;
+  background: var(--superficie);
+  cursor: pointer;
+}
+
+.lista-zonas-elegir label.elegida {
+  border-color: var(--azul);
+  box-shadow: 0 0 0 1px var(--azul);
+}
+
+.lista-zonas-elegir .nombre-zona {
+  display: grid;
+  font-weight: 600;
+}
+
+.lista-zonas-elegir .nombre-zona .secundaria {
+  font-weight: 400;
+}
+
+.lista-zonas-elegir b {
+  font-size: 1.15rem;
+}
+
+.filtros-usuarios {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.filtros-usuarios .campo {
+  max-width: 420px;
 }

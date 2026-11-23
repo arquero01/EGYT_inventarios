@@ -223,3 +223,10 @@ export const esquema = {
   comandos,
   eventosEquipo,
 };
+
+/** Ubicación en el mapa elegida para una zona (código DANE del municipio). */
+export const zonasUbicacion = pgTable('zonas_ubicacion', {
+  zona: varchar('zona', { length: 120 }).primaryKey(),
+  municipioCodigo: varchar('municipio_codigo', { length: 5 }).notNull(),
+  actualizadoEn: timestamp('actualizado_en', { withTimezone: true }).notNull().defaultNow(),
+});

@@ -18,6 +18,7 @@ import {
 import type { BaseDatos } from './db/cliente.ts';
 import { ejecutarComando, traducirError } from './comandos/ejecutor.ts';
 import { ESTADOS_GARANTIA, hojaDeVida, listarEquipos, listarZonas } from './consultas/equipos.ts';
+import { fichaUsuarioFinal, listarUsuariosFinales, resumenUsuariosFinales, ubicarZona } from './consultas/usuariosFinales.ts';
 import { resumenInventario, stockPorTipo } from './consultas/inventario.ts';
 import {
   detalleBodega,
@@ -91,6 +92,22 @@ const filtrosEquipos = z.object({
   q: z.string().optional(),
   pagina: z.coerce.number().int().min(1).default(1),
   porPagina: z.coerce.number().int().min(1).max(100).default(20),
+});
+
+const filtrosUsuarios = z.object({
+  q: z.string().max(100).optional(),
+  // ?zona=San Miguel&zona=Orito (una o varias).
+  zona: z
+    .union([z.string().max(120), z.array(z.string().max(120)).max(50)])
+    .optional()
+    .transform((v) => (v === undefined ? [] : Array.isArray(v) ? v : [v])),
+  pagina: z.coerce.number().int().min(1).default(1),
+  porPagina: z.coerce.number().int().min(1).max(100).default(25),
+});
+
+const ubicacionZona = z.object({
+  zona: z.string().trim().min(1).max(120),
+  municipioCodigo: z.string().regex(/^\d{5}$/).nullable(),
 });
 
 const filtrosMovimientos = z.object({
@@ -219,6 +236,22 @@ export function construirApp(db: BaseDatos, opciones: OpcionesApp = {}): Fastify
     });
 
     app.get('/zonas', async () => listarZonas(db));
+
+    // Usuarios finales (las personas que reciben los equipos): tablero, lista y ficha.
+    app.get('/usuarios-finales/resumen', async () => resumenUsuariosFinales(db));
+    app.get('/usuarios-finales', async (req) => {
+      const f = leer(filtrosUsuarios, req.query, 'RF-22');
+      return listarUsuariosFinales(db, { q: f.q, zonas: f.zona, pagina: f.pagina, porPagina: f.porPagina });
+    });
+    app.get('/usuarios-finales/:id', async (req) => {
+      const { id } = leer(z.object({ id: z.uuid() }), req.params, 'USU-01');
+      return fichaUsuarioFinal(db, id);
+    });
+    // Dónde se dibuja una zona en el mapa (solo administradores).
+    app.put('/zonas/ubicacion', { preHandler: soloAdmin }, async (req) => {
+      const { zona, municipioCodigo } = leer(ubicacionZona, req.body, 'ZON-01');
+      return ubicarZona(db, zona, municipioCodigo);
+    });
 
     /** RF-16: acepta el id (UUID) o el serial. */
     app.get('/equipos/:idOSerial', async (req) => {
